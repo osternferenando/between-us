@@ -127,7 +127,9 @@ let unsubscribePresence = null;
 let typingTimer = null;
 let isTypingFlagged = false;
 let loadedPack = null; 
-let presenceData = {}; 
+let presenceData = {};
+let stallCount = 0; // Tracks how often they dodge questions
+
 
 const SKIPPED = "__SKIPPED__";
 const MILESTONES = [5, 10, 25, 50, 100];
@@ -767,6 +769,23 @@ function renderGame(data, sortedIds) {
 
   revealEl.classList.toggle("hidden", !allAnswered);
   nextBtn.classList.toggle("hidden", !allAnswered);
+  
+  // Inside renderGame, after checking if everyone answered:
+const answersForQ = (data.answers && data.answers[idx]) || {};
+const answers = Object.values(answersForQ);
+
+// Check if they are stalling (short answers or skips)
+const isStalling = answers.every(ans => ans.length < 5 || ans === SKIPPED);
+
+if (allAnswered && isStalling) {
+    stallCount++;
+    if (stallCount >= 2) { // After 2 stale rounds in a row, the AI steps in
+        autoIntervene(data);
+        stallCount = 0; // Reset
+    }
+} else if (allAnswered) {
+    stallCount = 0; // They are engaging well, reset the counter
+}
 
   if (allAnswered) {
     const reactionsForQ = (data.reactions && data.reactions[idx]) || {};
@@ -1235,4 +1254,37 @@ exportKeepsakeBtn.addEventListener("click", async () => {
         exportKeepsakeBtn.textContent = "Save as Image 📸";
     }
 });
+
+async function autoIntervene(data) {
+    // 1. Only run if we haven't already replaced the question
+    if (data.isAIIntervention) return;
+
+    // 2. Build the context for Gemini
+    const idx = data.currentIndex;
+    const conversationHistory = `The question was: "${data.questions[idx]}"\nPlayers answered: ${Object.values(data.answers[idx] || {}).join(", ")}`;
+
+    const prompt = `Two players are playing a deep connection game but seem to be stalling or avoiding the topic. 
+    Analyze their answers: ${conversationHistory}. 
+    Provide one direct, vulnerable 'Bridge Question' to break the tension. 
+    Keep it under 30 words. No intro or outro.`;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const json = await response.json();
+        const aiQuestion = json.candidates[0].content.parts[0].text.trim();
+
+        // 3. Silently update the database so both players see the change automatically
+        await updateDoc(doc(db, "rooms", roomId), {
+            [`questions.${idx}`]: `Mediator: ${aiQuestion}`,
+            isAIIntervention: true
+        });
+        toast("The Mediator is sensing some tension...");
+    } catch (e) {
+        console.error("Auto-Mediator failed", e);
+    }
+}
 
