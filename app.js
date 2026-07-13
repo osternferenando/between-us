@@ -9,6 +9,68 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 import { QUESTIONS, CATEGORY_META } from "./questions.js";
 
+// Add this to your app.js (paste it near the top, after imports)
+// ====== AI Mediator Function (Backend Version) ======
+
+// Set this to your Vercel backend URL. Example:
+// const MEDIATOR_BACKEND_URL = "https://your-project.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = process.env.VITE_MEDIATOR_BACKEND_URL || window.MEDIATOR_BACKEND_URL;
+
+async function triggerAIMediator(roomId, idx, data) {
+  if (!MEDIATOR_BACKEND_URL) {
+    console.warn("⚠️ Mediator: Backend URL not configured. Skipping AI intervention.");
+    toast("Mediator not configured");
+    return;
+  }
+
+  try {
+    const question = data.questions[idx];
+    const answers = Object.values(data.answers[idx] || {});
+
+    console.log("🤖 Mediator: Activating backend mediator...");
+    console.log("   Question:", question);
+    console.log("   Answers:", answers);
+
+    const response = await fetch(MEDIATOR_BACKEND_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: question,
+        answers: answers
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("🤖 Mediator: Backend returned error", response.status, errorData);
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    const data_response = await response.json();
+    
+    if (!data_response.success || !data_response.bridgeQuestion) {
+      throw new Error("Invalid response from mediator backend");
+    }
+
+    const aiQuestion = data_response.bridgeQuestion;
+    console.log("✅ Mediator: Got bridge question:", aiQuestion);
+
+    // Update the database so both players see the change automatically
+    await updateDoc(doc(db, "rooms", roomId), {
+      [`questions.${idx}`]: `Mediator: ${aiQuestion}`,
+      isAIIntervention: true
+    });
+    
+    toast("The Mediator is sensing some tension...");
+  } catch (e) {
+    console.error("❌ Mediator failed:", e.message, e);
+    toast("Mediator encountered an issue (see console for details)");
+  }
+}
+
+// Export if using modules
+export { triggerAIMediator, https://between-us-backend.vercel.app/ };
+
 // ---------- Firebase init ----------
 const CONFIG_MISSING = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("YOUR_");
 let db = null;
