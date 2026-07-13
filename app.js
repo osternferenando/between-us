@@ -112,7 +112,7 @@ const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
-const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/";
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
