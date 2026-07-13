@@ -21,6 +21,7 @@ if (!CONFIG_MISSING) {
 const el = (id) => document.getElementById(id);
 
 const themeToggleBtn = el("theme-toggle");
+const soundToggleBtn = el("sound-toggle");
 const toastEl = el("toast");
 const configWarningEl = el("config-warning");
 
@@ -38,6 +39,8 @@ const showJoinBtn = el("show-join-btn");
 const createStep = el("create-step");
 const joinStep = el("join-step");
 const categoryChipsEl = el("category-chips");
+const conversationModeToggle = el("conversation-mode-toggle");
+const customCodeInput = el("custom-code-input");
 const createRoomBtn = el("create-room-btn");
 const joinCodeInput = el("join-code-input");
 const joinRoomBtn = el("join-room-btn");
@@ -52,9 +55,11 @@ const categoryTagEl = el("category-tag");
 const questionNumberEl = el("question-number");
 const questionCardEl = el("question-card");
 const questionTextEl = el("question-text");
+const favoriteBtn = el("favorite-btn");
 const answerFormEl = el("answer-form");
 const answerInput = el("answer-input");
 const skipBtn = el("skip-btn");
+const typingIndicatorEl = el("typing-indicator");
 const leaveRoomBtn = el("leave-room-btn");
 const cancelWaitingBtn = el("cancel-waiting-btn");
 const memoryToggleBtn = el("memory-toggle");
@@ -66,6 +71,7 @@ const revealEl = el("reveal");
 const revealMineEl = el("reveal-mine");
 const revealTheirsNameEl = el("reveal-theirs-name");
 const revealTheirsEl = el("reveal-theirs");
+const revealQuoteEl = el("reveal-quote");
 const nextBtn = el("next-btn");
 
 const endCountEl = el("end-count");
@@ -77,12 +83,27 @@ let roomId = null;
 let selectedCategory = "mix";
 let currentRoomData = null;
 let lastAnimatedIndex = -1;
+let lastRevealedIndex = -1;
 let celebratedIndex = -1;
 let unsubscribeRoom = null;
+let typingTimer = null;
+let isTypingFlagged = false;
 
 const SKIPPED = "__SKIPPED__";
 const MILESTONES = [5, 10, 25, 50, 100];
 const CONFETTI_COLORS = ["#c9a15a", "#9c3348", "#2f6f65", "#f6efe1", "#3d3a75"];
+const QUOTES = [
+  "Great conversations build stronger connections.",
+  "That's one more thing you know about each other now.",
+  "Small answers, big closeness.",
+  "This is how you get to know someone, one card at a time.",
+  "Worth remembering — that one's going in the Memory Book.",
+  "Some of the best conversations start with a random question.",
+  "You just learned something you didn't know this morning.",
+];
+
+let soundEnabled = localStorage.getItem("bu_sound") !== "off";
+let favorites = getFavorites();
 
 // ---------- Helpers ----------
 function showScreen(name) {
@@ -98,6 +119,7 @@ function leaveRoom() {
   roomId = null;
   currentRoomData = null;
   lastAnimatedIndex = -1;
+  lastRevealedIndex = -1;
   celebratedIndex = -1;
   createStep.classList.add("hidden");
   joinStep.classList.add("hidden");
@@ -127,6 +149,61 @@ function setRevealText(node, value) {
     node.textContent = value;
     node.classList.remove("skipped");
   }
+}
+
+// ---------- Favorites (stored locally, per browser) ----------
+function getFavorites() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("bu_favorites") || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function saveFavorites() {
+  localStorage.setItem("bu_favorites", JSON.stringify([...favorites]));
+}
+function updateFavoriteBtn(text) {
+  const isFav = favorites.has(text);
+  favoriteBtn.textContent = isFav ? "♥" : "♡";
+  favoriteBtn.classList.toggle("active", isFav);
+}
+
+// ---------- Sound (synthesized — no audio files needed) ----------
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audioCtx = new Ctx();
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+function playTone(freq, duration, type, startGain) {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(startGain, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch {
+    // Sound is a nice-to-have — fail silently if the browser blocks it.
+  }
+}
+function playShuffleSound() {
+  playTone(300, 0.12, "triangle", 0.06);
+  setTimeout(() => playTone(420, 0.1, "triangle", 0.05), 60);
+}
+function playRevealSound() {
+  playTone(520, 0.18, "sine", 0.07);
+  setTimeout(() => playTone(660, 0.22, "sine", 0.06), 90);
 }
 
 function toast(message) {
@@ -161,9 +238,20 @@ async function generateUniqueRoomCode() {
   return generateRoomCode() + Math.floor(Math.random() * 9); // vanishingly unlikely fallback
 }
 
-function buildShuffledQuestions(category) {
+function shuffle(arr) {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+function buildShuffledQuestions(category, conversationMode) {
   const pool = category === "mix" ? Object.values(QUESTIONS).flat() : QUESTIONS[category];
-  return [...pool].sort(() => Math.random() - 0.5);
+  if (!conversationMode) {
+    return shuffle(pool).map((item) => item.text);
+  }
+  const byLevel = { 1: [], 2: [], 3: [], 4: [] };
+  pool.forEach((item) => byLevel[item.level].push(item));
+  return [1, 2, 3, 4]
+    .flatMap((lvl) => shuffle(byLevel[lvl]))
+    .map((item) => item.text);
 }
 
 function shareUrl() {
@@ -178,7 +266,7 @@ function escapeHtml(str) {
 
 // ---------- Category chips ----------
 function renderCategoryChips() {
-  const order = ["mix", "love", "friendship", "deep", "funny", "wouldYouRather", "confessions", "dares", "wyd"];
+  const order = ["mix", "love", "friendship", "family", "deep", "funny", "party", "firstImpressions", "wouldYouRather", "confessions", "dares", "wyd"];
   categoryChipsEl.innerHTML = "";
   order.forEach((key) => {
     const meta = CATEGORY_META[key];
@@ -225,16 +313,32 @@ createRoomBtn.addEventListener("click", async () => {
   createRoomBtn.textContent = "Creating...";
   try {
     playerId = getPlayerId();
-    const code = await generateUniqueRoomCode();
-    const questions = buildShuffledQuestions(selectedCategory);
+    const conversationMode = conversationModeToggle.checked;
+
+    let code;
+    const customCode = customCodeInput.value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
+    if (customCode) {
+      const existing = await getDoc(doc(db, "rooms", customCode));
+      if (existing.exists()) {
+        toast("That code's taken — try another or leave it blank.");
+        return;
+      }
+      code = customCode;
+    } else {
+      code = await generateUniqueRoomCode();
+    }
+
+    const questions = buildShuffledQuestions(selectedCategory, conversationMode);
     await setDoc(doc(db, "rooms", code), {
       category: selectedCategory,
+      conversationMode,
       questions,
       currentIndex: 0,
       createdAt: serverTimestamp(),
       expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // auto-deleted after 30 days, see README
       players: { [playerId]: { name: nameInput.value.trim(), joinedAt: Date.now() } },
       answers: {},
+      typing: {},
     });
     roomId = code;
     roomCodeDisplayEl.textContent = code;
@@ -331,7 +435,7 @@ function renderGame(data) {
     })
     .join("");
 
-  progressTextEl.textContent = `${idx + 1} / ${data.questions.length}`;
+  progressTextEl.textContent = (data.conversationMode ? "🌙 " : "") + `${idx + 1} / ${data.questions.length}`;
   const meta = CATEGORY_META[data.category];
   categoryTagEl.style.setProperty("--stamp", meta.color);
   categoryTagEl.textContent = `${meta.emoji} ${meta.label}`;
@@ -344,7 +448,9 @@ function renderGame(data) {
     questionCardEl.classList.add("animate");
     lastAnimatedIndex = idx;
     answerInput.value = "";
+    playShuffleSound();
   }
+  updateFavoriteBtn(data.questions[idx]);
 
   const answersForQ = (data.answers && data.answers[idx]) || {};
   const myAnswer = answersForQ[playerId];
@@ -355,8 +461,12 @@ function renderGame(data) {
   const iAnswered = myAnswer !== undefined;
   const bothAnswered = iAnswered && otherAnswer !== undefined;
 
+  const otherTyping = !!(data.typing && data.typing[otherId] && otherAnswer === undefined);
+  typingIndicatorEl.classList.toggle("hidden", !otherTyping);
+  if (otherTyping) typingIndicatorEl.textContent = `✍️ ${otherName} is typing...`;
+
   answerFormEl.classList.toggle("hidden", iAnswered);
-  waitingForOtherEl.classList.toggle("hidden", !iAnswered || bothAnswered);
+  waitingForOtherEl.classList.toggle("hidden", !iAnswered || bothAnswered || otherTyping);
   if (iAnswered && !bothAnswered) {
     waitingForOtherEl.textContent = `Waiting for ${otherName} to answer...`;
   }
@@ -367,6 +477,12 @@ function renderGame(data) {
     setRevealText(revealMineEl, myAnswer);
     revealTheirsNameEl.textContent = otherName;
     setRevealText(revealTheirsEl, otherAnswer);
+
+    if (idx !== lastRevealedIndex) {
+      lastRevealedIndex = idx;
+      playRevealSound();
+      revealQuoteEl.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+    }
 
     if (idx !== celebratedIndex && MILESTONES.includes(idx + 1)) {
       celebratedIndex = idx;
@@ -406,6 +522,29 @@ skipBtn.addEventListener("click", async () => {
   }
 });
 
+favoriteBtn.addEventListener("click", () => {
+  if (!currentRoomData) return;
+  const text = currentRoomData.questions[currentRoomData.currentIndex];
+  if (favorites.has(text)) favorites.delete(text);
+  else favorites.add(text);
+  saveFavorites();
+  updateFavoriteBtn(text);
+});
+
+// ---------- Typing indicator ----------
+answerInput.addEventListener("input", () => {
+  if (!currentRoomData || !roomId || !db) return;
+  if (!isTypingFlagged) {
+    isTypingFlagged = true;
+    updateDoc(doc(db, "rooms", roomId), { [`typing.${playerId}`]: true }).catch(() => {});
+  }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    isTypingFlagged = false;
+    updateDoc(doc(db, "rooms", roomId), { [`typing.${playerId}`]: false }).catch(() => {});
+  }, 1500);
+});
+
 // ---------- Leave / cancel ----------
 leaveRoomBtn.addEventListener("click", leaveRoom);
 cancelWaitingBtn.addEventListener("click", leaveRoom);
@@ -428,7 +567,7 @@ function renderMemoryBook(data) {
       .join("");
     entries.push(
       `<div class="memory-entry"><span class="index-number">No. ${String(i + 1).padStart(3, "0")}</span>` +
-      `<p class="memory-q">${escapeHtml(data.questions[i])}</p>${answerRows}</div>`
+      `<p class="memory-q">${favorites.has(data.questions[i]) ? "♥ " : ""}${escapeHtml(data.questions[i])}</p>${answerRows}</div>`
     );
   }
   memoryListEl.innerHTML = entries.length
@@ -466,8 +605,10 @@ nextBtn.addEventListener("click", async () => {
 // ---------- Play again ----------
 playAgainBtn.addEventListener("click", async () => {
   if (!currentRoomData) return;
-  const newQuestions = buildShuffledQuestions(currentRoomData.category);
+  const newQuestions = buildShuffledQuestions(currentRoomData.category, currentRoomData.conversationMode);
   lastAnimatedIndex = -1;
+  lastRevealedIndex = -1;
+  celebratedIndex = -1;
   try {
     await updateDoc(doc(db, "rooms", roomId), { questions: newQuestions, currentIndex: 0, answers: {} });
   } catch (err) {
@@ -502,6 +643,13 @@ themeToggleBtn.addEventListener("click", () => {
   localStorage.setItem("bu_theme", next);
 });
 
+soundToggleBtn.addEventListener("click", () => {
+  soundEnabled = !soundEnabled;
+  soundToggleBtn.textContent = soundEnabled ? "🔊" : "🔇";
+  localStorage.setItem("bu_sound", soundEnabled ? "on" : "off");
+  if (soundEnabled) getAudioCtx();
+});
+
 // ---------- Init ----------
 function init() {
   renderCategoryChips();
@@ -511,6 +659,7 @@ function init() {
     document.body.setAttribute("data-theme", "light");
     themeToggleBtn.textContent = "🌙";
   }
+  soundToggleBtn.textContent = soundEnabled ? "🔊" : "🔇";
 
   if (CONFIG_MISSING) {
     configWarningEl.classList.remove("hidden");
