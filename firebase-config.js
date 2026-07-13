@@ -16,3 +16,5 @@ export const firebaseConfig = {
   messagingSenderId: "202533133817",
   appId: "1:202533133817:web:f695bebfde764771a4b128"
 };
+
+databaseURL: "https://between-us-e23ab-default-rtdb.firebaseio.com/".
