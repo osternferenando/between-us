@@ -6,4 +6,4 @@
 //
 // Free tier: 1,500 requests per day (more than enough for a two-player game)
 
-const SECRET_KEY = "YOUR_GOOGLE_GEMINI_API_KEY_HERE";
+const SECRET_KEY = "AQ.Ab8RN6L_YbyTAKNStBdypvcMuMd-JdeHeKOdGVJ9CEepvhucBg";
