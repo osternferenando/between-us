@@ -9,68 +9,6 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 import { QUESTIONS, CATEGORY_META } from "./questions.js";
 
-// Add this to your app.js (paste it near the top, after imports)
-// ====== AI Mediator Function (Backend Version) ======
-
-// Set this to your Vercel backend URL. Example:
-// const MEDIATOR_BACKEND_URL = "https://your-project.vercel.app/api/mediator";
-const MEDIATOR_BACKEND_URL = process.env.VITE_MEDIATOR_BACKEND_URL || window.MEDIATOR_BACKEND_URL;
-
-async function triggerAIMediator(roomId, idx, data) {
-  if (!MEDIATOR_BACKEND_URL) {
-    console.warn("⚠️ Mediator: Backend URL not configured. Skipping AI intervention.");
-    toast("Mediator not configured");
-    return;
-  }
-
-  try {
-    const question = data.questions[idx];
-    const answers = Object.values(data.answers[idx] || {});
-
-    console.log("🤖 Mediator: Activating backend mediator...");
-    console.log("   Question:", question);
-    console.log("   Answers:", answers);
-
-    const response = await fetch(MEDIATOR_BACKEND_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: question,
-        answers: answers
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("🤖 Mediator: Backend returned error", response.status, errorData);
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    const data_response = await response.json();
-    
-    if (!data_response.success || !data_response.bridgeQuestion) {
-      throw new Error("Invalid response from mediator backend");
-    }
-
-    const aiQuestion = data_response.bridgeQuestion;
-    console.log("✅ Mediator: Got bridge question:", aiQuestion);
-
-    // Update the database so both players see the change automatically
-    await updateDoc(doc(db, "rooms", roomId), {
-      [`questions.${idx}`]: `Mediator: ${aiQuestion}`,
-      isAIIntervention: true
-    });
-    
-    toast("The Mediator is sensing some tension...");
-  } catch (e) {
-    console.error("❌ Mediator failed:", e.message, e);
-    toast("Mediator encountered an issue (see console for details)");
-  }
-}
-
-// Export if using modules
-export { triggerAIMediator, https://between-us-backend.vercel.app/ };
-
 // ---------- Firebase init ----------
 const CONFIG_MISSING = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("YOUR_");
 let db = null;
@@ -172,7 +110,9 @@ const revealListEl = el("reveal-list");
 const revealQuoteEl = el("reveal-quote");
 const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
-const GEMINI_API_KEY = typeof SECRET_KEY !== 'undefined' ? SECRET_KEY : "";
+// NOTE: Gemini is no longer called directly from the frontend.
+// Set this to your deployed Vercel backend URL (protects your API key).
+const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
@@ -1327,36 +1267,41 @@ async function autoIntervene(data) {
         return;
     }
 
-    // 2. Build the context for Gemini
-    const idx = data.currentIndex;
-    const conversationHistory = `The question was: "${data.questions[idx]}"\nPlayers answered: ${Object.values(data.answers[idx] || {}).join(", ")}`;
-    const prompt = `Two players are playing a deep connection game but seem to be stalling or avoiding the topic. 
-    Analyze their answers: ${conversationHistory}. 
-    Provide one direct, vulnerable 'Bridge Question' to break the tension. 
-    Keep it under 30 words. No intro or outro.`;
+    if (!MEDIATOR_BACKEND_URL || MEDIATOR_BACKEND_URL.includes("YOUR-PROJECT")) {
+        console.warn("⚠️ Mediator: MEDIATOR_BACKEND_URL is not configured yet.");
+        toast("Mediator not configured");
+        return;
+    }
 
-    console.log("🤖 Mediator: Activating! Prompting Gemini...");
-    console.log("   Question:", data.questions[idx]);
-    console.log("   Answers:", Object.values(data.answers[idx] || {}));
-    console.log("   Gemini API Key present:", !!GEMINI_API_KEY);
+    // 2. Build the context to send to our backend
+    const idx = data.currentIndex;
+    const question = data.questions[idx];
+    const answers = Object.values(data.answers[idx] || {});
+
+    console.log("🤖 Mediator: Activating! Calling backend...");
+    console.log("   Question:", question);
+    console.log("   Answers:", answers);
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(MEDIATOR_BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify({ question, answers })
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error("🤖 Mediator: API returned error", response.status, errorData);
-            throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+            console.error("🤖 Mediator: Backend returned error", response.status, errorData);
+            throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
-        const json = await response.json();
-        const aiQuestion = json.candidates[0].content.parts[0].text.trim();
+        const result = await response.json();
+        if (!result.success || !result.bridgeQuestion) {
+            throw new Error("Backend returned an unexpected response shape");
+        }
+        const aiQuestion = result.bridgeQuestion;
 
-        console.log("✅ Mediator: Got response from Gemini:", aiQuestion);
+        console.log("✅ Mediator: Got response from backend:", aiQuestion);
 
         // 3. Silently update the database so both players see the change automatically
         await updateDoc(doc(db, "rooms", roomId), {
