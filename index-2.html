@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Between Us — a two-player deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle day / night table">☀️</button>
+<button id="sound-toggle" class="theme-toggle sound-toggle" aria-label="Toggle sound">🔊</button>
+<button id="memory-toggle" class="memory-toggle hidden" type="button" aria-label="Open memory book">📖</button>
+<div id="confetti-layer" class="confetti-layer" aria-hidden="true"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<main id="app">
+
+  <!-- LANDING -->
+  <section id="screen-landing" class="screen">
+    <div class="brand">
+      <p class="kicker">A two-player deck</p>
+      <h1>Between&nbsp;Us</h1>
+      <p class="tagline">Shuffle a card. Answer it together.</p>
+    </div>
+
+    <div class="panel">
+      <label class="field-label" for="name-input">Your name</label>
+      <input id="name-input" type="text" maxlength="20" placeholder="e.g. Ostern" autocomplete="off">
+
+      <div id="mode-buttons" class="mode-buttons">
+        <button id="show-create-btn" class="btn btn-primary" type="button">Create a Room</button>
+        <button id="show-join-btn" class="btn btn-secondary" type="button">Join a Room</button>
+      </div>
+
+      <div id="create-step" class="substep hidden">
+        <p class="field-label">Pick a category</p>
+        <div id="category-chips" class="chip-grid"></div>
+
+        <label class="toggle-row">
+          <input type="checkbox" id="conversation-mode-toggle">
+          <span>🌙 Conversation Mode — start light, get deeper as you go</span>
+        </label>
+
+        <label class="field-label" for="custom-code-input">Custom room code (optional)</label>
+        <input id="custom-code-input" type="text" maxlength="20" placeholder="e.g. OSTERN-ASHLEY" autocomplete="off" style="text-transform:uppercase">
+
+        <button id="create-room-btn" class="btn btn-primary" type="button">Create Room</button>
+      </div>
+
+      <div id="join-step" class="substep hidden">
+        <label class="field-label" for="join-code-input">Room code</label>
+        <input id="join-code-input" type="text" maxlength="6" placeholder="e.g. K7QXR" autocomplete="off" style="text-transform:uppercase">
+        <button id="join-room-btn" class="btn btn-primary" type="button">Join Room</button>
+      </div>
+    </div>
+
+    <p id="config-warning" class="config-warning hidden">
+      ⚠️ Firebase isn't connected yet. Open <code>firebase-config.js</code> and follow <code>README.md</code> to hook up your free Firebase project.
+    </p>
+  </section>
+
+  <!-- WAITING -->
+  <section id="screen-waiting" class="screen hidden">
+    <div class="ticket">
+      <p class="kicker">Your room code</p>
+      <div id="room-code-display" class="room-code"></div>
+      <div class="share-row">
+        <button id="copy-link-btn" class="btn btn-secondary" type="button">Copy Link</button>
+        <button id="whatsapp-btn" class="btn btn-primary" type="button">Share on WhatsApp</button>
+      </div>
+    </div>
+    <p class="waiting-text">Waiting for your person to join<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+    <button id="cancel-waiting-btn" class="leave-link" type="button" style="align-self:center;">Cancel and go back</button>
+  </section>
+
+  <!-- GAME -->
+  <section id="screen-game" class="screen hidden">
+    <div class="game-topbar">
+      <div class="topbar-left">
+        <div class="players-row" id="players-row"></div>
+        <button id="leave-room-btn" class="leave-link" type="button">Leave room</button>
+      </div>
+      <div class="progress-text" id="progress-text"></div>
+    </div>
+
+    <div class="deck-wrap">
+      <div class="ghost-card ghost-1" aria-hidden="true"></div>
+      <div class="ghost-card ghost-2" aria-hidden="true"></div>
+      <div id="question-card" class="question-card">
+        <div class="card-index">
+          <span id="category-tag" class="stamp"></span>
+          <span id="question-number" class="index-number"></span>
+        </div>
+        <p id="question-text" class="question-text" aria-live="polite"></p>
+        <button id="favorite-btn" class="favorite-btn" type="button" aria-label="Favorite this question">♡</button>
+      </div>
+    </div>
+
+    <p id="typing-indicator" class="typing-indicator hidden"></p>
+
+    <form id="answer-form" class="answer-form">
+      <label class="sr-only" for="answer-input">Your answer</label>
+      <textarea id="answer-input" rows="3" maxlength="500" placeholder="Type your answer..."></textarea>
+      <button type="submit" class="btn btn-primary">Submit Answer</button>
+      <button id="skip-btn" class="btn btn-secondary" type="button">Skip This One</button>
+    </form>
+
+    <p id="waiting-for-other" class="waiting-text hidden"></p>
+
+    <div id="reveal" class="reveal hidden">
+      <div class="answer-bubble me">
+        <span class="bubble-label">You</span>
+        <p id="reveal-mine"></p>
+      </div>
+      <div class="answer-bubble them">
+        <span class="bubble-label" id="reveal-theirs-name"></span>
+        <p id="reveal-theirs"></p>
+      </div>
+      <p id="reveal-quote" class="reveal-quote"></p>
+    </div>
+
+    <button id="next-btn" class="btn btn-primary next-btn hidden" type="button">Draw Next Card →</button>
+  </section>
+
+  <!-- MEMORY BOOK -->
+  <section id="screen-memory" class="screen hidden">
+    <div class="game-topbar">
+      <p class="kicker" style="margin:0;">Memory Book</p>
+      <button id="memory-back-btn" class="leave-link" type="button">Back</button>
+    </div>
+    <div id="memory-list" class="memory-list"></div>
+  </section>
+
+  <!-- END -->
+  <section id="screen-end" class="screen hidden">
+    <div class="panel end-panel">
+      <p class="kicker">Deck complete</p>
+      <h2 class="end-heading"><span id="end-count"></span> questions, answered together</h2>
+      <p class="waiting-text">That's a lot of conversation for one sitting.</p>
+      <button id="play-again-btn" class="btn btn-primary" type="button">Shuffle a New Deck</button>
+    </div>
+  </section>
+
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
