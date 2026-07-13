@@ -14,7 +14,6 @@ export const firebaseConfig = {
   projectId: "between-us-e23ab",
   storageBucket: "between-us-e23ab.firebasestorage.app",
   messagingSenderId: "202533133817",
-  appId: "1:202533133817:web:f695bebfde764771a4b128"
-};
-
-databaseURL: "https://between-us-e23ab-default-rtdb.firebaseio.com/".
+  appId: "1:202533133817:web:f695bebfde764771a4b128",
+  databaseURL: "https://between-us-e23ab-default-rtdb.firebaseio.com/"
+}
