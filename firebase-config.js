@@ -9,10 +9,10 @@
 //    README.md in this same folder.
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDyjnrN5m2-ATikJ54vxhDh5D2_pOKywWQ",
+  authDomain: "between-us-e23ab.firebaseapp.com",
+  projectId: "between-us-e23ab",
+  storageBucket: "between-us-e23ab.firebasestorage.app",
+  messagingSenderId: "202533133817",
+  appId: "1:202533133817:web:f695bebfde764771a4b128"
 };
