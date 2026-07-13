@@ -669,8 +669,10 @@ function listenToRoom(code) {
     doc(db, "rooms", code),
     (snap) => {
       if (!snap.exists()) return;
-      currentRoomData = snap.data();
+            currentRoomData = snap.data();
+      checkForNewReactions(currentRoomData); // <-- ADD THIS LINE
       render(currentRoomData);
+
     },
     (err) => {
       console.error(err);
@@ -1157,3 +1159,59 @@ async function init() {
 }
 
 init();
+
+// ---------- Reactions Logic & Animation ----------
+let knownReactions = {}; // Track what we've already animated
+
+window.castReaction = async function(idx, targetId, emoji, event) {
+  if (!currentRoomData || !roomId) return;
+  
+  // Trigger animation locally immediately for a snappy feel
+  spawnFloatingReaction(emoji, event.clientX, event.clientY);
+
+  try {
+    await updateDoc(doc(db, "rooms", roomId), { 
+        [`reactions.${idx}.${targetId}.${playerId}`]: emoji 
+    });
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't send reaction.");
+  }
+};
+
+function spawnFloatingReaction(emoji, x, y) {
+    const el = document.createElement('div');
+    el.className = 'floating-reaction';
+    el.textContent = emoji;
+    el.style.left = (x - 20) + 'px';
+    el.style.top = (y - 20) + 'px';
+    document.body.appendChild(el);
+    
+    // Clean up the DOM element after the animation finishes
+    setTimeout(() => el.remove(), 1500);
+}
+
+// Watch for incoming reactions from the other player
+function checkForNewReactions(data) {
+    if (!data.started || !data.reactions) return;
+    const idx = data.currentIndex;
+    const currentReactions = data.reactions[idx] || {};
+    
+    // Look at reactions directed at YOU
+    const myReactions = currentReactions[playerId] || {};
+    
+    Object.entries(myReactions).forEach(([reactorId, emoji]) => {
+        const uniqueKey = `${idx}-${reactorId}-${emoji}`;
+        if (!knownReactions[uniqueKey]) {
+            knownReactions[uniqueKey] = true;
+            
+            // Find your bubble on the screen to spawn the emoji from it
+            const myBubble = document.getElementById(`bubble-${playerId}`);
+            if (myBubble && reactorId !== playerId) {
+                const rect = myBubble.getBoundingClientRect();
+                spawnFloatingReaction(emoji, rect.left + (rect.width / 2), rect.top);
+            }
+        }
+    });
+}
+
