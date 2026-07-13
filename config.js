@@ -1,1 +1,0 @@
-const SECRET_KEY = "AQ.Ab8RN6ISX-yDX67gIILkdO_ACdm4jQq08JV3nokvr6Wy0j4bAg";
