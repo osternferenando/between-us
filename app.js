@@ -110,6 +110,7 @@ const revealListEl = el("reveal-list");
 const revealQuoteEl = el("reveal-quote");
 const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
