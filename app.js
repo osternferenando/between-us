@@ -669,10 +669,9 @@ function listenToRoom(code) {
     doc(db, "rooms", code),
     (snap) => {
       if (!snap.exists()) return;
-            currentRoomData = snap.data();
+      currentRoomData = snap.data();
       checkForNewReactions(currentRoomData); // <-- ADD THIS LINE
       render(currentRoomData);
-
     },
     (err) => {
       console.error(err);
