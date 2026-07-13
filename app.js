@@ -13,27 +13,17 @@ import { QUESTIONS, CATEGORY_META } from "./questions.js";
 const CONFIG_MISSING = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("YOUR_");
 let db = null;
 let rtdb = null;
-let rtdbApi = null; // populated only if the optional Realtime Database module loads successfully
+let rtdbApi = null; 
 
 if (!CONFIG_MISSING) {
   const fbApp = initializeApp(firebaseConfig);
   db = getFirestore(fbApp);
 
-  // Realtime Database powers true online/offline presence — Firestore alone
-  // can't reliably detect a closed tab, but RTDB's onDisconnect() can.
-  // This is loaded DYNAMICALLY and wrapped in try/catch ON PURPOSE: if this
-  // CDN module ever fails to load (network hiccup, ad blocker, region block),
-  // it must never be able to take down the rest of the app. A static top-level
-  // `import` of a failing module stops the whole script — every button on the
-  // page — which is exactly the bug that caused the unresponsive screen.
-  // Presence is a bonus, not a dependency: everything else works with no
-  // databaseURL set at all.
   if (firebaseConfig.databaseURL) {
     import("https://www.gstatic.com/firebasejs/12.16.0/firebase-database.js")
       .then((mod) => {
         rtdbApi = mod;
         rtdb = mod.getDatabase(fbApp);
-        // If we're already in a room by the time this resolves, wire presence up now.
         if (roomId && playerId) setupPresence(roomId, playerId);
       })
       .catch((err) => {
@@ -135,8 +125,8 @@ let unsubscribeRoom = null;
 let unsubscribePresence = null;
 let typingTimer = null;
 let isTypingFlagged = false;
-let loadedPack = null; // { code, title, questions: [string] }
-let presenceData = {}; // { [playerId]: { online: bool } }
+let loadedPack = null; 
+let presenceData = {}; 
 
 const SKIPPED = "__SKIPPED__";
 const MILESTONES = [5, 10, 25, 50, 100];
@@ -203,7 +193,6 @@ function setRevealText(node, value) {
   }
 }
 
-// ---------- Favorites (stored locally, per browser) ----------
 function getFavorites() {
   try {
     return new Set(JSON.parse(localStorage.getItem("bu_favorites") || "[]"));
@@ -220,7 +209,7 @@ function updateFavoriteBtn(text) {
   favoriteBtn.classList.toggle("active", isFav);
 }
 
-// ---------- Sound (synthesized — no audio files needed) ----------
+// ---------- Sound ----------
 let audioCtx = null;
 function getAudioCtx() {
   if (!audioCtx) {
@@ -245,9 +234,7 @@ function playTone(freq, duration, type, startGain) {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + duration);
-  } catch {
-    // Sound is a nice-to-have — fail silently if the browser blocks it.
-  }
+  } catch {}
 }
 function playShuffleSound() {
   playTone(300, 0.12, "triangle", 0.06);
@@ -275,7 +262,7 @@ function getPlayerId() {
 }
 
 function generateRoomCode() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O or 1/I — easy to read aloud
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
   let code = "";
   for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
@@ -287,7 +274,7 @@ async function generateUniqueRoomCode() {
     const snap = await getDoc(doc(db, "rooms", code));
     if (!snap.exists()) return code;
   }
-  return generateRoomCode() + Math.floor(Math.random() * 9); // vanishingly unlikely fallback
+  return generateRoomCode() + Math.floor(Math.random() * 9); 
 }
 
 async function generateUniquePackCode() {
@@ -535,7 +522,7 @@ createRoomBtn.addEventListener("click", async () => {
       hostId: playerId,
       started: false,
       createdAt: serverTimestamp(),
-      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // auto-deleted after 30 days, see README
+      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 
       players: { [playerId]: { name: nameInput.value.trim(), joinedAt: Date.now() } },
       answers: {},
       votes: {},
@@ -592,8 +579,6 @@ joinRoomBtn.addEventListener("click", async () => {
     }
     if (!alreadyIn) {
       const updates = { [`players.${playerId}`]: { name: nameInput.value.trim(), joinedAt: Date.now() } };
-      // Duo rooms (max 2) auto-start the moment the second player joins,
-      // matching the original two-player experience exactly.
       if (maxPlayers === 2 && playerCount + 1 >= 2) {
         updates.started = true;
       }
@@ -628,9 +613,6 @@ startGameBtn.addEventListener("click", async () => {
 });
 
 // ---------- Realtime Database presence ----------
-// A separate database from Firestore. We write our own presence node and
-// register onDisconnect() *server-side* so a closed tab / dropped connection
-// flips us to offline even if we never get to run any of our own JS.
 function setupPresence(code, id) {
   if (!rtdb || !rtdbApi) return;
   if (unsubscribePresence) unsubscribePresence();
@@ -670,7 +652,7 @@ function listenToRoom(code) {
     (snap) => {
       if (!snap.exists()) return;
       currentRoomData = snap.data();
-      checkForNewReactions(currentRoomData); // <-- ADD THIS LINE
+      checkForNewReactions(currentRoomData); // Trigger emoji checks
       render(currentRoomData);
     },
     (err) => {
@@ -736,6 +718,7 @@ function categoryLabel(data) {
   return CATEGORY_META[data.category];
 }
 
+// ---------- THE RENDER GAME FUNCTION (With fixed brackets!) ----------
 function renderGame(data, sortedIds) {
   showScreen("game");
   const idx = data.currentIndex;
@@ -753,7 +736,7 @@ function renderGame(data, sortedIds) {
 
   if (idx !== lastAnimatedIndex) {
     questionCardEl.classList.remove("animate");
-    void questionCardEl.offsetWidth; // restart the CSS animation
+    void questionCardEl.offsetWidth; 
     questionCardEl.classList.add("animate");
     lastAnimatedIndex = idx;
     answerInput.value = "";
@@ -783,8 +766,8 @@ function renderGame(data, sortedIds) {
 
   revealEl.classList.toggle("hidden", !allAnswered);
   nextBtn.classList.toggle("hidden", !allAnswered);
-    if (allAnswered) {
-    // 1. Grab reactions for this specific question
+
+  if (allAnswered) {
     const reactionsForQ = (data.reactions && data.reactions[idx]) || {};
 
     revealListEl.innerHTML = sortedIds
@@ -794,7 +777,6 @@ function renderGame(data, sortedIds) {
         const raw = answersForQ[id];
         const shown = raw === SKIPPED ? '<span class="skipped">Skipped this one</span>' : escapeHtml(raw);
         
-        // 2. Build the reaction buttons for the OTHER player's answer
         let reactionHTML = '';
         if (!isMe && raw !== SKIPPED) {
             const targetReactions = reactionsForQ[id] || {};
@@ -825,7 +807,7 @@ function renderGame(data, sortedIds) {
       fireConfetti();
     }
   }
-
+} // <--- THIS WAS THE MISSING BRACKET THAT FROZE THE APP!
 
 // ---------- Vote mode ----------
 function renderVoteGame(data, sortedIds) {
@@ -1048,7 +1030,7 @@ memoryBackBtn.addEventListener("click", () => {
   if (currentRoomData) render(currentRoomData);
 });
 
-// ---------- Next question (transaction avoids a double-advance if everyone taps at once) ----------
+// ---------- Next question ----------
 nextBtn.addEventListener("click", async () => {
   if (!currentRoomData) return;
   const ref = doc(db, "rooms", roomId);
@@ -1088,8 +1070,6 @@ copyLinkBtn.addEventListener("click", async () => {
     await navigator.clipboard.writeText(url);
     toast("Link copied!");
   } catch {
-    // Some in-app browsers (WhatsApp, Instagram) block the Clipboard API —
-    // fall back to a native prompt the person can copy from manually.
     window.prompt("Copy this link:", url);
   }
 });
@@ -1098,7 +1078,7 @@ whatsappBtn.addEventListener("click", () => {
   window.open(`https://wa.me/?text=${text}`, "_blank");
 });
 
-// ---------- Theme (dark table / daylight table) ----------
+// ---------- Theme ----------
 themeToggleBtn.addEventListener("click", () => {
   const isLight = document.body.getAttribute("data-theme") === "light";
   const next = isLight ? "dark" : "light";
@@ -1160,12 +1140,11 @@ async function init() {
 init();
 
 // ---------- Reactions Logic & Animation ----------
-let knownReactions = {}; // Track what we've already animated
+let knownReactions = {}; 
 
 window.castReaction = async function(idx, targetId, emoji, event) {
   if (!currentRoomData || !roomId) return;
   
-  // Trigger animation locally immediately for a snappy feel
   spawnFloatingReaction(emoji, event.clientX, event.clientY);
 
   try {
@@ -1186,17 +1165,14 @@ function spawnFloatingReaction(emoji, x, y) {
     el.style.top = (y - 20) + 'px';
     document.body.appendChild(el);
     
-    // Clean up the DOM element after the animation finishes
     setTimeout(() => el.remove(), 1500);
 }
 
-// Watch for incoming reactions from the other player
 function checkForNewReactions(data) {
     if (!data.started || !data.reactions) return;
     const idx = data.currentIndex;
     const currentReactions = data.reactions[idx] || {};
     
-    // Look at reactions directed at YOU
     const myReactions = currentReactions[playerId] || {};
     
     Object.entries(myReactions).forEach(([reactorId, emoji]) => {
@@ -1204,7 +1180,6 @@ function checkForNewReactions(data) {
         if (!knownReactions[uniqueKey]) {
             knownReactions[uniqueKey] = true;
             
-            // Find your bubble on the screen to spawn the emoji from it
             const myBubble = document.getElementById(`bubble-${playerId}`);
             if (myBubble && reactorId !== playerId) {
                 const rect = myBubble.getBoundingClientRect();
@@ -1213,4 +1188,3 @@ function checkForNewReactions(data) {
         }
     });
 }
-
