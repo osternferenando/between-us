@@ -109,6 +109,7 @@ const revealEl = el("reveal");
 const revealListEl = el("reveal-list");
 const revealQuoteEl = el("reveal-quote");
 const nextBtn = el("next-btn");
+const exportKeepsakeBtn = el("export-keepsake-btn");
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
@@ -1188,3 +1189,50 @@ function checkForNewReactions(data) {
         }
     });
 }
+
+// ---------- Keepsake Export Logic ----------
+exportKeepsakeBtn.addEventListener("click", async () => {
+    // 1. Prevent spam clicking
+    exportKeepsakeBtn.disabled = true;
+    exportKeepsakeBtn.textContent = "Snapping... 📸";
+
+    // 2. Temporarily hide the UI buttons we don't want in the final picture
+    const originalNextBtnDisplay = nextBtn.style.display;
+    nextBtn.style.display = "none";
+    exportKeepsakeBtn.style.display = "none";
+    leaveRoomBtn.style.display = "none";
+
+    try {
+        // 3. Take a high-res snapshot of the whole app container
+        const captureArea = el("app");
+        const canvas = await html2canvas(captureArea, {
+            backgroundColor: getComputedStyle(document.body).backgroundColor, // Matches dark/light mode
+            scale: 2, // Doubles the resolution for crisp social media sharing
+            useCORS: true // Ensures custom fonts load correctly in the image
+        });
+
+        // 4. Convert the canvas into a downloadable PNG file
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = `BetweenUs-Memory-${Math.floor(Math.random() * 10000)}.png`;
+        
+        // 5. Trigger the download!
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast("Image saved to your device! 📸");
+    } catch (err) {
+        console.error("Export failed:", err);
+        toast("Couldn't save the image right now.");
+    } finally {
+        // 6. Bring all the buttons back so the game can continue
+        nextBtn.style.display = originalNextBtnDisplay;
+        exportKeepsakeBtn.style.display = "block";
+        leaveRoomBtn.style.display = "block";
+        exportKeepsakeBtn.disabled = false;
+        exportKeepsakeBtn.textContent = "Save as Image 📸";
+    }
+});
+
