@@ -477,6 +477,73 @@ textarea { resize: vertical; min-height: 70px; }
   text-align: center;
 }
 
+/* ---------- Select / hint / pack panel ---------- */
+.select-input {
+  width: 100%;
+  background: var(--card-2);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 13px 14px;
+  color: var(--on-card);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+.hint-text { font-size: 0.78rem; color: var(--on-card-soft); margin: 0 0 16px; }
+.pack-panel {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-card);
+}
+.pack-status { font-size: 0.82rem; color: var(--on-card-soft); margin: 0 0 10px; min-height: 1.1em; }
+.pack-status.ok { color: var(--garnet); font-weight: 600; }
+.pack-creator-link { margin-top: 4px; }
+
+/* ---------- Waiting screen (group) ---------- */
+#waiting-players { font-weight: 600; }
+
+/* ---------- Vote mode ---------- */
+.vote-form { display: flex; flex-direction: column; gap: 10px; }
+.vote-buttons { display: flex; flex-direction: column; gap: 8px; }
+.vote-option {
+  width: 100%;
+  text-align: left;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-card);
+  background: var(--card-2);
+  color: var(--on-card);
+  font-family: var(--font-ui);
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vote-option:active { transform: translate(2px, 2px); }
+.vote-option.picked { background: var(--gold); border-color: var(--gold); color: #241c30; }
+
+/* ---------- Reveal list (works for 2 or many players) ---------- */
+.reveal-list { display: flex; flex-direction: column; gap: 10px; }
+.reveal-list .answer-bubble.me { border-left: 3px solid var(--gold); }
+.reveal-list .answer-bubble.them { border-left: 3px solid var(--garnet); }
+
+/* ---------- Vote tally ---------- */
+.tally-row {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border-card);
+  color: var(--on-card);
+}
+.tally-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; }
+.tally-bar-track { height: 8px; border-radius: 5px; background: var(--border-card); margin-top: 8px; overflow: hidden; }
+.tally-bar-fill { height: 100%; background: var(--garnet); border-radius: 5px; }
+.tally-row.winner .tally-bar-fill { background: var(--gold); }
+.tally-you-voted { font-size: 0.72rem; color: var(--on-card-soft); margin-top: 4px; }
+
+/* ---------- Presence dot ---------- */
+.player-tag .dot-online { color: #3fbf6f; }
+.player-tag .dot-offline { color: #8a8494; }
+
 /* ---------- Small screens ---------- */
 @media (max-width: 380px) {
   .room-code { font-size: 1.8rem; }

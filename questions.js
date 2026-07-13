@@ -20,6 +20,8 @@ export const CATEGORY_META = {
   confessions: { emoji: "💭", label: "Confessions", color: "#6b3d6b" },
   dares: { emoji: "😈", label: "Dares", color: "#a1452a" },
   wyd: { emoji: "🤔", label: "What Would You Do", color: "#45566b" },
+  vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba" },
+  custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c" },
 };
 
 function q(text, level) {
@@ -206,5 +208,31 @@ export const QUESTIONS = {
     q("What would you do if you found out your best friend lied to you about something big?", 2),
     q("What would you do if you could erase one memory forever?", 3),
     q("What would you do if you had to give a speech to thousands with no prep?", 1),
+  ],
+  // Vote-mode prompts: instead of typing an answer, the group votes for
+  // *which player* the prompt best fits. Works with 3+ players.
+  vote: [
+    q("Who's most likely to become a millionaire?", 1),
+    q("Who's most likely to survive a zombie apocalypse?", 1),
+    q("Who's most likely to cry during a movie?", 1),
+    q("Who's most likely to forget their own birthday?", 1),
+    q("Who's most likely to become famous?", 1),
+    q("Who's most likely to win an argument with zero evidence?", 1),
+    q("Who's most likely to accidentally start a business?", 1),
+    q("Who's most likely to sleep through their alarm?", 1),
+    q("Who's most likely to adopt way too many pets?", 1),
+    q("Who's most likely to eat the last slice without asking?", 1),
+    q("Who's most likely to give the best advice?", 1),
+    q("Who's most likely to get lost using GPS?", 1),
+    q("Who's most likely to become a hermit?", 1),
+    q("Who's most likely to talk their way out of a speeding ticket?", 1),
+    q("Who's most likely to laugh at their own joke the hardest?", 1),
+    q("Who's most likely to move to another country on a whim?", 1),
+    q("Who's most likely to be the last one awake at a sleepover?", 1),
+    q("Who's most likely to become an internet meme?", 1),
+    q("Who's most likely to overthink a text message?", 1),
+    q("Who's most likely to try to fix something and make it worse?", 1),
+    q("Who's most likely to remember everyone's birthday?", 1),
+    q("Who's most likely to become a reality TV star?", 1),
   ],
 };

@@ -29,7 +29,7 @@
 
     <div class="panel">
       <label class="field-label" for="name-input">Your name</label>
-      <input id="name-input" type="text" maxlength="20" placeholder="e.g. Ostern" autocomplete="off">
+      <input id="name-input" type="text" maxlength="20" placeholder="e.g. Taylor" autocomplete="off">
 
       <div id="mode-buttons" class="mode-buttons">
         <button id="show-create-btn" class="btn btn-primary" type="button">Create a Room</button>
@@ -40,10 +40,32 @@
         <p class="field-label">Pick a category</p>
         <div id="category-chips" class="chip-grid"></div>
 
+        <div id="pack-panel" class="pack-panel hidden">
+          <label class="field-label" for="pack-code-input">Pack code</label>
+          <input id="pack-code-input" type="text" maxlength="20" placeholder="e.g. PACK-K7QXR" autocomplete="off" style="text-transform:uppercase">
+          <button id="load-pack-btn" class="btn btn-secondary" type="button">Load Pack</button>
+          <p id="pack-status" class="pack-status"></p>
+          <button id="open-pack-creator-btn" class="leave-link pack-creator-link" type="button">✏️ Write your own pack →</button>
+        </div>
+
         <label class="toggle-row">
           <input type="checkbox" id="conversation-mode-toggle">
           <span>🌙 Conversation Mode — start light, get deeper as you go</span>
         </label>
+
+        <label class="field-label" for="max-players-select">Players</label>
+        <select id="max-players-select" class="select-input">
+          <option value="2">2 — Duo (classic)</option>
+          <option value="3">3 — Group</option>
+          <option value="4">4 — Group</option>
+          <option value="5">5 — Group</option>
+          <option value="6">6 — Group</option>
+          <option value="7">7 — Group</option>
+          <option value="8">8 — Group</option>
+          <option value="9">9 — Group</option>
+          <option value="10">10 — Group</option>
+        </select>
+        <p class="hint-text">3–10 players unlocks Group Mode. Pick 🗳️ Vote Prompts with 3+ players for a voting game.</p>
 
         <label class="field-label" for="custom-code-input">Custom room code (optional)</label>
         <input id="custom-code-input" type="text" maxlength="20" placeholder="e.g. OSTERN-ASHLEY" autocomplete="off" style="text-transform:uppercase">
@@ -63,6 +85,32 @@
     </p>
   </section>
 
+  <!-- PACK CREATOR -->
+  <section id="screen-pack-creator" class="screen hidden">
+    <div class="panel">
+      <p class="kicker">Write a question pack</p>
+      <label class="field-label" for="pack-title-input">Pack title</label>
+      <input id="pack-title-input" type="text" maxlength="40" placeholder="e.g. Our Road Trip Questions" autocomplete="off">
+
+      <label class="field-label" for="pack-questions-input">Questions (one per line, at least 3)</label>
+      <textarea id="pack-questions-input" rows="8" placeholder="What's your favorite memory of us?
+What's something you've never told anyone?
+..."></textarea>
+
+      <button id="save-pack-btn" class="btn btn-primary" type="button">Save Pack</button>
+      <button id="pack-creator-back-btn" class="leave-link" type="button" style="align-self:center;">← Back</button>
+    </div>
+
+    <div id="pack-saved-panel" class="ticket hidden">
+      <p class="kicker">Your pack code</p>
+      <div id="pack-code-display" class="room-code"></div>
+      <div class="share-row">
+        <button id="pack-copy-link-btn" class="btn btn-secondary" type="button">Copy Link</button>
+        <button id="pack-use-now-btn" class="btn btn-primary" type="button">Use This Pack Now</button>
+      </div>
+    </div>
+  </section>
+
   <!-- WAITING -->
   <section id="screen-waiting" class="screen hidden">
     <div class="ticket">
@@ -73,7 +121,9 @@
         <button id="whatsapp-btn" class="btn btn-primary" type="button">Share on WhatsApp</button>
       </div>
     </div>
-    <p class="waiting-text">Waiting for your person to join<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+    <p id="waiting-players" class="waiting-text"></p>
+    <p id="waiting-hint" class="waiting-text">Waiting for your person to join<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+    <button id="start-game-btn" class="btn btn-primary hidden" type="button">Start Game</button>
     <button id="cancel-waiting-btn" class="leave-link" type="button" style="align-self:center;">Cancel and go back</button>
   </section>
 
@@ -109,17 +159,15 @@
       <button id="skip-btn" class="btn btn-secondary" type="button">Skip This One</button>
     </form>
 
+    <div id="vote-form" class="vote-form hidden">
+      <div id="vote-buttons" class="vote-buttons"></div>
+      <button id="vote-skip-btn" class="btn btn-secondary" type="button">Skip This One</button>
+    </div>
+
     <p id="waiting-for-other" class="waiting-text hidden"></p>
 
     <div id="reveal" class="reveal hidden">
-      <div class="answer-bubble me">
-        <span class="bubble-label">You</span>
-        <p id="reveal-mine"></p>
-      </div>
-      <div class="answer-bubble them">
-        <span class="bubble-label" id="reveal-theirs-name"></span>
-        <p id="reveal-theirs"></p>
-      </div>
+      <div id="reveal-list" class="reveal-list"></div>
       <p id="reveal-quote" class="reveal-quote"></p>
     </div>
 
