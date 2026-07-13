@@ -782,14 +782,33 @@ function renderGame(data, sortedIds) {
 
   revealEl.classList.toggle("hidden", !allAnswered);
   nextBtn.classList.toggle("hidden", !allAnswered);
-  if (allAnswered) {
+    if (allAnswered) {
+    // 1. Grab reactions for this specific question
+    const reactionsForQ = (data.reactions && data.reactions[idx]) || {};
+
     revealListEl.innerHTML = sortedIds
       .map((id) => {
         const isMe = id === playerId;
         const label = isMe ? "You" : escapeHtml(data.players[id].name);
         const raw = answersForQ[id];
         const shown = raw === SKIPPED ? '<span class="skipped">Skipped this one</span>' : escapeHtml(raw);
-        return `<div class="answer-bubble ${isMe ? "me" : "them"}"><span class="bubble-label">${label}</span><p>${shown}</p></div>`;
+        
+        // 2. Build the reaction buttons for the OTHER player's answer
+        let reactionHTML = '';
+        if (!isMe && raw !== SKIPPED) {
+            const targetReactions = reactionsForQ[id] || {};
+            const myReact = targetReactions[playerId];
+
+            reactionHTML = `
+            <div class="reaction-bar" id="reaction-bar-${id}">
+                <button class="reaction-btn ${myReact === '❤️' ? 'active' : ''}" onclick="window.castReaction(${idx}, '${id}', '❤️', event)">❤️</button>
+                <button class="reaction-btn ${myReact === '😂' ? 'active' : ''}" onclick="window.castReaction(${idx}, '${id}', '😂', event)">😂</button>
+                <button class="reaction-btn ${myReact === '😮' ? 'active' : ''}" onclick="window.castReaction(${idx}, '${id}', '😮', event)">😮</button>
+            </div>
+            `;
+        }
+
+        return `<div class="answer-bubble ${isMe ? "me" : "them"}" id="bubble-${id}"><span class="bubble-label">${label}</span><p>${shown}</p>${reactionHTML}</div>`;
       })
       .join("");
 
@@ -805,7 +824,7 @@ function renderGame(data, sortedIds) {
       fireConfetti();
     }
   }
-}
+
 
 // ---------- Vote mode ----------
 function renderVoteGame(data, sortedIds) {
