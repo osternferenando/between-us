@@ -112,7 +112,7 @@ const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
-const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
@@ -158,6 +158,41 @@ function showScreen(name) {
   memoryToggleBtn.classList.toggle("hidden", !["game", "end"].includes(name));
 }
 
+function saveGameState(code, id) {
+  if (code && id && db) {
+    localStorage.setItem("bu_activeRoom", code);
+    localStorage.setItem("bu_activePlayerId", id);
+  }
+}
+
+function clearGameState() {
+  localStorage.removeItem("bu_activeRoom");
+  localStorage.removeItem("bu_activePlayerId");
+}
+
+async function restoreGameState() {
+  const savedRoom = localStorage.getItem("bu_activeRoom");
+  const savedPlayerId = localStorage.getItem("bu_activePlayerId");
+  
+  if (savedRoom && savedPlayerId && db) {
+    try {
+      const snap = await getDoc(doc(db, "rooms", savedRoom));
+      if (snap.exists()) {
+        roomId = savedRoom;
+        playerId = savedPlayerId;
+        listenToRoom(savedRoom);
+        setupPresence(savedRoom, savedPlayerId);
+        console.log("✅ Game state restored:", savedRoom);
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to restore game state:", err);
+    }
+    clearGameState();
+  }
+  return false;
+}
+
 function leaveRoom() {
   if (unsubscribeRoom) unsubscribeRoom();
   if (unsubscribePresence) unsubscribePresence();
@@ -169,6 +204,7 @@ function leaveRoom() {
   lastAnimatedIndex = -1;
   lastRevealedIndex = -1;
   celebratedIndex = -1;
+  clearGameState();
   createStep.classList.add("hidden");
   joinStep.classList.add("hidden");
   showScreen("landing");
@@ -540,6 +576,8 @@ createRoomBtn.addEventListener("click", async () => {
     }
     await setDoc(doc(db, "rooms", code), roomDoc);
     roomId = code;
+    playerId = playerId; // Already set above
+    saveGameState(code, playerId);
     roomCodeDisplayEl.textContent = code;
     showScreen("waiting");
     listenToRoom(code);
@@ -591,6 +629,7 @@ joinRoomBtn.addEventListener("click", async () => {
       await updateDoc(ref, updates);
     }
     roomId = code;
+    saveGameState(code, playerId);
     listenToRoom(code);
     setupPresence(code, playerId);
   } catch (err) {
@@ -1122,6 +1161,11 @@ soundToggleBtn.addEventListener("click", () => {
 // ---------- Init ----------
 async function init() {
   renderCategoryChips();
+  
+  // Try to restore active game first (if user refreshed mid-game)
+  if (await restoreGameState()) {
+    return; // Game state restored, no need to show landing page
+  }
 
   const savedTheme = localStorage.getItem("bu_theme");
   if (savedTheme === "light") {
@@ -1304,11 +1348,11 @@ async function autoIntervene(data) {
         console.log("✅ Mediator: Got response from backend:", aiQuestion);
 
         // 3. Silently update the database so both players see the change automatically
+        // The purple eye indicator already signals listening status; no need for toast
         await updateDoc(doc(db, "rooms", roomId), {
             [`questions.${idx}`]: `Mediator: ${aiQuestion}`,
             isAIIntervention: true
         });
-        toast("The Mediator is sensing some tension...");
     } catch (e) {
         console.error("❌ Auto-Mediator failed:", e.message, e);
         toast("Mediator encountered an issue (see console for details)");
