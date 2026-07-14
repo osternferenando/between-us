@@ -112,7 +112,10 @@ const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
-const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
+
+// Pending mediator question - stored until player draws next card
+let pendingMediatorQuestion = null;
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
@@ -1099,14 +1102,35 @@ nextBtn.addEventListener("click", async () => {
   if (!currentRoomData) return;
   const ref = doc(db, "rooms", roomId);
   const myIdx = currentRoomData.currentIndex;
+  
   try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      const data = snap.data();
-      if (data.currentIndex === myIdx) {
-        tx.update(ref, { currentIndex: myIdx + 1 });
-      }
-    });
+    // If there's a pending mediator question, insert it now
+    if (pendingMediatorQuestion) {
+      console.log("🤖 Injecting pending mediator question into next position");
+      const nextIndex = myIdx + 1;
+      const newQuestions = [...currentRoomData.questions];
+      
+      // Insert the mediator question at the next index
+      newQuestions.splice(nextIndex, 0, pendingMediatorQuestion);
+      
+      console.log("🤖 Question injected, clearing pending queue");
+      pendingMediatorQuestion = null;
+      
+      // Update database with new questions array
+      await updateDoc(ref, { 
+        questions: newQuestions,
+        currentIndex: nextIndex
+      });
+    } else {
+      // Normal flow - just advance to next question
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const data = snap.data();
+        if (data.currentIndex === myIdx) {
+          tx.update(ref, { currentIndex: myIdx + 1 });
+        }
+      });
+    }
   } catch (err) {
     console.error(err);
   }
@@ -1305,16 +1329,14 @@ exportKeepsakeBtn.addEventListener("click", async () => {
 });
 
 async function autoIntervene(data) {
-    // 1. Only run if we haven't already replaced the question
-    if (data.isAIIntervention) {
-        console.log("🤖 Mediator: Already intervened on this question, skipping.");
+    // 1. Only run if we haven't already created a pending mediator question
+    if (pendingMediatorQuestion) {
+        console.log("🤖 Mediator: Already have a pending question, skipping.");
         return;
     }
 
     if (!MEDIATOR_BACKEND_URL || MEDIATOR_BACKEND_URL.includes("YOUR-PROJECT")) {
         console.warn("⚠️ Mediator: MEDIATOR_BACKEND_URL is not configured yet.");
-        console.warn("   URL:", MEDIATOR_BACKEND_URL);
-        toast("Mediator not configured");
         return;
     }
 
@@ -1324,16 +1346,13 @@ async function autoIntervene(data) {
     const answers = Object.values(data.answers[idx] || {});
 
     console.log("🤖 ════════════════════════════════════");
-    console.log("🤖 MEDIATOR STARTING");
+    console.log("🤖 MEDIATOR WORKING IN BACKGROUND");
     console.log("🤖 ════════════════════════════════════");
-    console.log("🤖 Current Index:", idx);
     console.log("🤖 Question:", question);
     console.log("🤖 Answers:", answers);
-    console.log("🤖 Backend URL:", MEDIATOR_BACKEND_URL);
-    console.log("🤖 Room ID:", roomId);
 
     try {
-        console.log("🤖 → Making fetch request to backend...");
+        console.log("🤖 → Calling backend to generate question...");
         const response = await fetch(MEDIATOR_BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1344,81 +1363,37 @@ async function autoIntervene(data) {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error("🤖 ❌ ERROR: HTTP", response.status);
-            console.error("🤖 Error data:", errorData);
+            console.error("🤖 ❌ Backend error:", response.status, errorData);
             throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
         const result = await response.json();
-        console.log("🤖 Response object:", result);
 
-        if (!result) {
-            console.error("🤖 ❌ ERROR: Response is null");
-            throw new Error("Response is null");
-        }
-
-        if (!result.success) {
-            console.error("🤖 ❌ ERROR: success field is", result.success);
-            throw new Error("Response success is not true");
-        }
-
-        if (!result.bridgeQuestion) {
-            console.error("🤖 ❌ ERROR: No bridgeQuestion field");
-            console.error("🤖 Response keys:", Object.keys(result));
-            throw new Error("No bridgeQuestion in response");
+        if (!result.success || !result.bridgeQuestion) {
+            console.error("🤖 ❌ Invalid response:", result);
+            throw new Error("Invalid response from mediator backend");
         }
 
         const aiQuestion = result.bridgeQuestion.trim();
         
-        if (!aiQuestion || aiQuestion.length === 0) {
-            console.error("🤖 ❌ ERROR: bridgeQuestion is empty");
-            throw new Error("Bridge question is empty after trim");
+        if (!aiQuestion) {
+            console.error("🤖 ❌ Empty question");
+            throw new Error("Bridge question is empty");
         }
 
-        console.log("🤖 ✅ Got bridge question!");
-        console.log("🤖 Bridge question:", aiQuestion);
-        console.log("🤖 → Updating Firebase...");
-
-        // 3. Silently update the database so both players see the change automatically
-        const newQuestionText = aiQuestion;
-        const updatePayload = {
-            [`questions.${idx}`]: newQuestionText,
-            isAIIntervention: true
-        };
-        
-        console.log("🤖 Update payload:", updatePayload);
-        
-        await updateDoc(doc(db, "rooms", roomId), updatePayload);
+        // 3. STORE the question - don't display yet!
+        pendingMediatorQuestion = aiQuestion;
         
         console.log("🤖 ════════════════════════════════════");
-        console.log("🤖 ✅ MEDIATOR SUCCESS!");
+        console.log("🤖 ✅ QUESTION GENERATED & STORED");
         console.log("🤖 ════════════════════════════════════");
-        console.log("🤖 Question updated in Firebase:");
-        console.log("🤖   OLD:", question);
-        console.log("🤖   NEW:", newQuestionText);
+        console.log("🤖 Question ready for next card:");
+        console.log("🤖 " + aiQuestion);
+        console.log("🤖 (Will display when player clicks 'Draw Next Card')");
         
     } catch (e) {
-        console.error("🤖 ════════════════════════════════════");
-        console.error("🤖 ❌ MEDIATOR FAILED!");
-        console.error("🤖 ════════════════════════════════════");
-        console.error("🤖 Error message:", e.message);
-        console.error("🤖 Error details:", e);
-        if (e.stack) console.error("🤖 Stack trace:", e.stack);
-        
-        // Show more helpful error message
-        let userMessage = "Mediator encountered an issue";
-        if (e.message.includes("404")) {
-            userMessage = "Backend not found - check URL";
-        } else if (e.message.includes("500")) {
-            userMessage = "Backend error - check GEMINI_API_KEY";
-        } else if (e.message.includes("empty")) {
-            userMessage = "AI returned empty response";
-        } else if (e.message.includes("bridgeQuestion")) {
-            userMessage = "AI response format error";
-        }
-        
-        toast(userMessage);
+        console.error("🤖 ❌ Mediator failed:", e.message);
+        pendingMediatorQuestion = null; // Reset on error
     }
 }
-
 
