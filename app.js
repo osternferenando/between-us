@@ -112,7 +112,7 @@ const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
-const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/api/mediator";
 
 // Pending mediator question - stored until player draws next card
 let pendingMediatorQuestion = null;
