@@ -112,7 +112,7 @@ const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
-const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/api/mediator";
+const MEDIATOR_BACKEND_URL = "https://YOUR-PROJECT.vercel.app/api/mediator";
 
 const endCountEl = el("end-count");
 const playAgainBtn = el("play-again-btn");
@@ -1313,6 +1313,7 @@ async function autoIntervene(data) {
 
     if (!MEDIATOR_BACKEND_URL || MEDIATOR_BACKEND_URL.includes("YOUR-PROJECT")) {
         console.warn("⚠️ Mediator: MEDIATOR_BACKEND_URL is not configured yet.");
+        console.warn("   URL:", MEDIATOR_BACKEND_URL);
         toast("Mediator not configured");
         return;
     }
@@ -1322,40 +1323,102 @@ async function autoIntervene(data) {
     const question = data.questions[idx];
     const answers = Object.values(data.answers[idx] || {});
 
-    console.log("🤖 Mediator: Activating! Calling backend...");
-    console.log("   Question:", question);
-    console.log("   Answers:", answers);
+    console.log("🤖 ════════════════════════════════════");
+    console.log("🤖 MEDIATOR STARTING");
+    console.log("🤖 ════════════════════════════════════");
+    console.log("🤖 Current Index:", idx);
+    console.log("🤖 Question:", question);
+    console.log("🤖 Answers:", answers);
+    console.log("🤖 Backend URL:", MEDIATOR_BACKEND_URL);
+    console.log("🤖 Room ID:", roomId);
 
     try {
+        console.log("🤖 → Making fetch request to backend...");
         const response = await fetch(MEDIATOR_BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ question, answers })
         });
 
+        console.log("🤖 ← Backend responded with HTTP", response.status);
+
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error("🤖 Mediator: Backend returned error", response.status, errorData);
+            const errorData = await response.json().catch(() => ({}));
+            console.error("🤖 ❌ ERROR: HTTP", response.status);
+            console.error("🤖 Error data:", errorData);
             throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
         const result = await response.json();
-        if (!result.success || !result.bridgeQuestion) {
-            throw new Error("Backend returned an unexpected response shape");
-        }
-        const aiQuestion = result.bridgeQuestion;
+        console.log("🤖 Response object:", result);
 
-        console.log("✅ Mediator: Got response from backend:", aiQuestion);
+        if (!result) {
+            console.error("🤖 ❌ ERROR: Response is null");
+            throw new Error("Response is null");
+        }
+
+        if (!result.success) {
+            console.error("🤖 ❌ ERROR: success field is", result.success);
+            throw new Error("Response success is not true");
+        }
+
+        if (!result.bridgeQuestion) {
+            console.error("🤖 ❌ ERROR: No bridgeQuestion field");
+            console.error("🤖 Response keys:", Object.keys(result));
+            throw new Error("No bridgeQuestion in response");
+        }
+
+        const aiQuestion = result.bridgeQuestion.trim();
+        
+        if (!aiQuestion || aiQuestion.length === 0) {
+            console.error("🤖 ❌ ERROR: bridgeQuestion is empty");
+            throw new Error("Bridge question is empty after trim");
+        }
+
+        console.log("🤖 ✅ Got bridge question!");
+        console.log("🤖 Bridge question:", aiQuestion);
+        console.log("🤖 → Updating Firebase...");
 
         // 3. Silently update the database so both players see the change automatically
-        // The purple eye indicator already signals listening status; no need for toast
-        await updateDoc(doc(db, "rooms", roomId), {
-            [`questions.${idx}`]: `Mediator: ${aiQuestion}`,
+        const newQuestionText = `Mediator: ${aiQuestion}`;
+        const updatePayload = {
+            [`questions.${idx}`]: newQuestionText,
             isAIIntervention: true
-        });
+        };
+        
+        console.log("🤖 Update payload:", updatePayload);
+        
+        await updateDoc(doc(db, "rooms", roomId), updatePayload);
+        
+        console.log("🤖 ════════════════════════════════════");
+        console.log("🤖 ✅ MEDIATOR SUCCESS!");
+        console.log("🤖 ════════════════════════════════════");
+        console.log("🤖 Question updated in Firebase:");
+        console.log("🤖   OLD:", question);
+        console.log("🤖   NEW:", newQuestionText);
+        
     } catch (e) {
-        console.error("❌ Auto-Mediator failed:", e.message, e);
-        toast("Mediator encountered an issue (see console for details)");
+        console.error("🤖 ════════════════════════════════════");
+        console.error("🤖 ❌ MEDIATOR FAILED!");
+        console.error("🤖 ════════════════════════════════════");
+        console.error("🤖 Error message:", e.message);
+        console.error("🤖 Error details:", e);
+        if (e.stack) console.error("🤖 Stack trace:", e.stack);
+        
+        // Show more helpful error message
+        let userMessage = "Mediator encountered an issue";
+        if (e.message.includes("404")) {
+            userMessage = "Backend not found - check URL";
+        } else if (e.message.includes("500")) {
+            userMessage = "Backend error - check GEMINI_API_KEY";
+        } else if (e.message.includes("empty")) {
+            userMessage = "AI returned empty response";
+        } else if (e.message.includes("bridgeQuestion")) {
+            userMessage = "AI response format error";
+        }
+        
+        toast(userMessage);
     }
 }
+
 
