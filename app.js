@@ -1397,3 +1397,269 @@ async function autoIntervene(data) {
     }
 }
 
+// Add these functions to your app.js
+
+// Configuration - UPDATE THIS with your Vercel URL
+const JOURNAL_API_URL = "https://between-us-backend.vercel.app/api/journal";
+
+// Generate journal after game ends
+async function generateJournal(category, answers, duration, sessionStats) {
+  console.log("📖 Generating relationship journal...");
+  
+  try {
+    const response = await fetch(JOURNAL_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category,
+        answers,
+        duration,
+        sessionStats
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Journal API error:", errorData);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data.success && data.journalEntry) {
+      console.log("✅ Journal generated:", data.journalEntry);
+      return data;
+    }
+  } catch (error) {
+    console.error("❌ Failed to generate journal:", error);
+  }
+  
+  return null;
+}
+
+// Display journal in a beautiful modal
+function displayJournal(journalData) {
+  if (!journalData) return;
+
+  const modal = document.createElement("div");
+  modal.className = "journal-modal";
+  modal.innerHTML = `
+    <div class="journal-container">
+      <div class="journal-header">
+        <h2>✨ Your Moment</h2>
+        <button class="journal-close" onclick="this.closest('.journal-modal').remove()">×</button>
+      </div>
+      
+      <div class="journal-content">
+        <div class="journal-category">${journalData.category}</div>
+        <p class="journal-text">${journalData.journalEntry}</p>
+        <div class="journal-meta">
+          <span>${journalData.duration} minutes</span>
+          <span>${new Date(journalData.timestamp).toLocaleDateString()}</span>
+        </div>
+      </div>
+      
+      <div class="journal-actions">
+        <button class="journal-btn" onclick="saveJournal('${journalData.category}', '${journalData.timestamp}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">
+          💾 Save Entry
+        </button>
+        <button class="journal-btn" onclick="exportJournal('${journalData.category}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">
+          📥 Export
+        </button>
+        <button class="journal-btn" onclick="this.closest('.journal-modal').remove()">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+// Save journal to Firebase
+async function saveJournal(category, timestamp, entry) {
+  if (!roomId || !playerId) return;
+
+  try {
+    const journalRef = doc(db, "rooms", roomId, "journals", timestamp);
+    await setDoc(journalRef, {
+      category,
+      entry,
+      timestamp,
+      savedBy: playerId,
+      createdAt: new Date()
+    });
+    
+    console.log("✅ Journal saved to Firebase");
+    toast("Entry saved to your memory book");
+  } catch (error) {
+    console.error("Failed to save journal:", error);
+    toast("Failed to save entry");
+  }
+}
+
+// Export journal as markdown
+function exportJournal(category, entry) {
+  const markdown = `# ${category}
+
+${entry}
+
+---
+Generated: ${new Date().toLocaleString()}
+Between Us - Relationship Journal
+  `;
+
+  const blob = new Blob([markdown], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `between-us-${category}-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// CSS Styles - Add to your stylesheet or <head>
+const journalStyles = `
+<style>
+.journal-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.journal-container {
+  background: white;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 90%;
+  padding: 30px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.journal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 15px;
+}
+
+.journal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.journal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.journal-close:hover {
+  color: #333;
+}
+
+.journal-content {
+  margin-bottom: 25px;
+}
+
+.journal-category {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 15px;
+}
+
+.journal-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+  font-style: italic;
+  margin: 15px 0;
+  padding: 15px;
+  background: #f9f9f9;
+  border-left: 4px solid #667eea;
+  border-radius: 4px;
+}
+
+.journal-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #999;
+  padding-top: 10px;
+}
+
+.journal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.journal-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 16px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.journal-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.journal-btn:active {
+  transform: translateY(0);
+}
+</style>
+`;
+
+// Insert styles into document
+if (!document.querySelector("style[data-journal]")) {
+  const styleTag = document.createElement("style");
+  styleTag.setAttribute("data-journal", "true");
+  styleTag.textContent = journalStyles.replace(/<\/?style>/g, "");
+  document.head.appendChild(styleTag);
+}
