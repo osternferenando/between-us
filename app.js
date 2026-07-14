@@ -1380,7 +1380,7 @@ async function autoIntervene(data) {
         console.log("🤖 → Updating Firebase...");
 
         // 3. Silently update the database so both players see the change automatically
-        const newQuestionText = `Mediator: ${aiQuestion}`;
+        const newQuestionText = aiQuestion;
         const updatePayload = {
             [`questions.${idx}`]: newQuestionText,
             isAIIntervention: true
