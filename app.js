@@ -824,7 +824,7 @@ function renderGame(data, sortedIds) {
 
   progressTextEl.textContent = (data.conversationMode ? "🌙 " : "") + `${idx + 1} / ${data.questions.length}`;
   const meta = categoryLabel(data);
-  categoryTagEl.style.setProperty("--stamp", meta.color);
+  applyCardTheme(meta, idx, data.questions.length);
   categoryTagEl.textContent = `${meta.emoji} ${meta.label}`;
   questionNumberEl.textContent = `No. ${String(idx + 1).padStart(3, "0")}`;
   questionTextEl.textContent = data.questions[idx];
@@ -935,7 +935,7 @@ function renderVoteGame(data, sortedIds) {
 
   progressTextEl.textContent = `${idx + 1} / ${data.questions.length}`;
   const meta = categoryLabel(data);
-  categoryTagEl.style.setProperty("--stamp", meta.color);
+  applyCardTheme(meta, idx, data.questions.length);
   categoryTagEl.textContent = `${meta.emoji} ${meta.label}`;
   questionNumberEl.textContent = `No. ${String(idx + 1).padStart(3, "0")}`;
   questionTextEl.textContent = data.questions[idx];
