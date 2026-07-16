@@ -58,6 +58,7 @@ const categoryChipsEl = el("category-chips");
 const conversationModeToggle = el("conversation-mode-toggle");
 const customCodeInput = el("custom-code-input");
 const maxPlayersSelect = el("max-players-select");
+const questionCountSelect = el("question-count-select");
 const createRoomBtn = el("create-room-btn");
 const joinCodeInput = el("join-code-input");
 const joinRoomBtn = el("join-room-btn");
@@ -553,11 +554,20 @@ createRoomBtn.addEventListener("click", async () => {
       code = await generateUniqueRoomCode();
     }
 
-    const questions = buildShuffledQuestions(selectedCategory, conversationMode);
-    if (!questions.length) {
-      toast("That pack has no questions — try another.");
-      return;
-    }
+    let questions = buildShuffledQuestions(selectedCategory, conversationMode);
+
+if (!questions.length) {
+  toast("That pack has no questions — try another.");
+  return;
+}
+
+const desiredCount = questionCountSelect.value; // "10" | "20" | "30" | "50" | "all"
+if (desiredCount !== "all") {
+  const n = Number(desiredCount);
+  if (n > 0 && n < questions.length) {
+    questions = questions.slice(0, n);
+  }
+}
     const roomDoc = {
       category: selectedCategory,
       conversationMode,
@@ -718,9 +728,35 @@ function render(data) {
     return;
   }
   if (data.currentIndex >= data.questions.length) {
-    renderEnd(data);
-    return;
+  renderEnd(data);
+  
+  // JOURNAL: Generate post-game reflection
+  if (!data.journalGenerated) {
+    const sessionAnswers = [];
+    if (data.answers) {
+      for (let i = 0; i < Math.min(5, data.questions.length); i++) {
+        const answerObj = data.answers[i] || {};
+        const answers = Object.values(answerObj);
+        sessionAnswers.push(answers.join(" & "));
+      }
+    }
+    
+    generateJournal(
+      data.category || "Connection",
+      sessionAnswers,
+      Date.now() - (sessionStartTime || Date.now()),
+      { laughs: 0, deepest: "meaningful conversation" }
+    ).then(journalData => {
+      if (journalData) {
+        displayJournal(journalData);
+        updateDoc(doc(db, "rooms", roomId), { journalGenerated: true });
+      }
+    });
   }
+  
+  return;
+}
+
   if (data.category === "vote") {
     renderVoteGame(data, playerIds);
   } else {
