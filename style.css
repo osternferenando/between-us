@@ -601,3 +601,63 @@ textarea { resize: vertical; min-height: 70px; }
   100% { transform: translateY(-120px) scale(1); opacity: 0; }
 }
 
+/* ====== Visual & Animation Enhancements — append to END of style.css ====== */
+
+/* Category-colored glow on the question card — the color shifts to match
+   whatever category you're currently playing (set via --accent in JS) */
+.question-card {
+  border-top: 4px solid var(--accent, var(--gold));
+  box-shadow: var(--shadow-card), 0 0 28px -10px var(--accent, transparent);
+  transition: border-color 0.45s ease, box-shadow 0.45s ease;
+}
+
+/* Juicier card draw — slight lift + tilt + scale settle instead of a flat slide */
+.question-card.animate {
+  animation: draw-in 0.5s cubic-bezier(.19,1,.22,1);
+}
+@keyframes draw-in {
+  0%   { opacity: 0; transform: translateX(30px) translateY(6px) rotate(4deg) scale(0.97); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateX(0) translateY(0) rotate(0) scale(1); }
+}
+
+/* Category stamp pops in with a little bounce each time it changes */
+.stamp {
+  animation: stamp-pop 0.35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes stamp-pop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Chips: tactile press + pulse on select */
+.chip {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.chip:active { transform: scale(0.95); }
+.chip.selected {
+  animation: chip-pulse 0.4s ease;
+}
+@keyframes chip-pulse {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* Animated progress bar under the "X / Y" counter — fills as you advance,
+   colored to match the current category */
+.progress-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border-table);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent, var(--gold));
+  width: 0%;
+  transition: width 0.5s cubic-bezier(.16,.84,.44,1), background 0.4s ease;
+}
