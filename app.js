@@ -136,6 +136,7 @@ let isTypingFlagged = false;
 let loadedPack = null; 
 let presenceData = {};
 let stallCount = 0; // Tracks how often they dodge questions
+let journalGenerationInFlight = false; // prevents duplicate journal calls from rapid snapshot updates
 
 
 const SKIPPED = "__SKIPPED__";
@@ -729,9 +730,11 @@ function render(data) {
   }
   if (data.currentIndex >= data.questions.length) {
   renderEnd(data);
-  
-  // JOURNAL: Generate post-game reflection
-  if (!data.journalGenerated) {
+
+  // JOURNAL: Generate post-game reflection (guarded so it only ever fires once)
+  if (!data.journalGenerated && !journalGenerationInFlight) {
+    journalGenerationInFlight = true;
+
     const sessionAnswers = [];
     if (data.answers) {
       for (let i = 0; i < Math.min(5, data.questions.length); i++) {
@@ -740,20 +743,28 @@ function render(data) {
         sessionAnswers.push(answers.join(" & "));
       }
     }
-    
+
+    const createdMs = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : Date.now();
+    const durationMs = Date.now() - createdMs;
+
+    // Mark it immediately so a second Firestore snapshot can't trigger this twice
+    updateDoc(doc(db, "rooms", roomId), { journalGenerated: true }).catch(() => {});
+
     generateJournal(
       data.category || "Connection",
       sessionAnswers,
-      Date.now() - (sessionStartTime || Date.now()),
+      durationMs,
       { laughs: 0, deepest: "meaningful conversation" }
     ).then(journalData => {
+      journalGenerationInFlight = false;
       if (journalData) {
         displayJournal(journalData);
-        updateDoc(doc(db, "rooms", roomId), { journalGenerated: true });
       }
+    }).catch(() => {
+      journalGenerationInFlight = false;
     });
   }
-  
+
   return;
 }
 
@@ -1553,6 +1564,12 @@ Between Us - Relationship Journal
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// Expose to window since these are invoked from inline onclick="" attributes
+// in the journal modal HTML — those run in global scope, and this file is a
+// module, so top-level functions are NOT automatically attached to window.
+window.saveJournal = saveJournal;
+window.exportJournal = exportJournal;
 
 // CSS Styles - Add to your stylesheet or <head>
 const journalStyles = `
