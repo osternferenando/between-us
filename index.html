@@ -11,7 +11,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
-
 <button id="theme-toggle" class="theme-toggle" aria-label="Toggle day / night table">☀️</button>
 <button id="sound-toggle" class="theme-toggle sound-toggle" aria-label="Toggle sound">🔊</button>
 <button id="memory-toggle" class="memory-toggle hidden" type="button" aria-label="Open memory book">📖</button>
@@ -19,7 +18,6 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <main id="app">
-
   <!-- LANDING -->
   <section id="screen-landing" class="screen">
     <div class="brand">
@@ -68,6 +66,16 @@
         </select>
         <p class="hint-text">3–10 players unlocks Group Mode. Pick 🗳️ Vote Prompts with 3+ players for a voting game.</p>
 
+        <label class="field-label" for="question-count-select">How many questions?</label>
+        <select id="question-count-select" class="select-input">
+          <option value="10">10 — Quick round</option>
+          <option value="20" selected>20 — Standard</option>
+          <option value="30">30 — Longer sit-down</option>
+          <option value="50">50 — Deep dive</option>
+          <option value="all">All — Every question in the deck</option>
+        </select>
+        <p class="hint-text">You can always shuffle a new deck when you finish.</p>
+
         <label class="field-label" for="custom-code-input">Custom room code (optional)</label>
         <input id="custom-code-input" type="text" maxlength="20" placeholder="e.g. OSTERN-ASHLEY" autocomplete="off" style="text-transform:uppercase">
 
@@ -92,16 +100,13 @@
       <p class="kicker">Write a question pack</p>
       <label class="field-label" for="pack-title-input">Pack title</label>
       <input id="pack-title-input" type="text" maxlength="40" placeholder="e.g. Our Road Trip Questions" autocomplete="off">
-
       <label class="field-label" for="pack-questions-input">Questions (one per line, at least 3)</label>
       <textarea id="pack-questions-input" rows="8" placeholder="What's your favorite memory of us?
 What's something you've never told anyone?
 ..."></textarea>
-
       <button id="save-pack-btn" class="btn btn-primary" type="button">Save Pack</button>
       <button id="pack-creator-back-btn" class="leave-link" type="button" style="align-self:center;">← Back</button>
     </div>
-
     <div id="pack-saved-panel" class="ticket hidden">
       <p class="kicker">Your pack code</p>
       <div id="pack-code-display" class="room-code"></div>
@@ -194,7 +199,6 @@ What's something you've never told anyone?
       <button id="play-again-btn" class="btn btn-primary" type="button">Shuffle a New Deck</button>
     </div>
   </section>
-
 </main>
 
 <script src="config.js"></script>
