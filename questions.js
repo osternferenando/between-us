@@ -22,11 +22,23 @@ export const CATEGORY_META = {
   wyd: { emoji: "🤔", label: "What Would You Do", color: "#45566b" },
   vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba" },
   custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c" },
+
+  vibeCheck: { emoji: "⚡", label: "Vibe Check", color: "#e056fd" },
+  dilemmas: { emoji: "🚨", label: "Hard Dilemmas", color: "#eb4d4b" },
+  growth: { emoji: "🌱", label: "Deep Growth", color: "#2ecc71" },
+  intimate: { emoji: "💘", label: "Intimacy", color: "#f39c12" },
 };
 
 function q(text, level) {
   return { text, level };
 }
+
+// ===================================================================
+// SINGLE, UNIFIED QUESTIONS OBJECT — everything lives inside this ONE
+// export. Do NOT create a second "export const QUESTIONS = {...}"
+// anywhere else in this file — that causes a fatal SyntaxError and
+// freezes the entire app (this was the bug that broke the game).
+// ===================================================================
 
 export const QUESTIONS = {
   love: [
@@ -47,6 +59,7 @@ export const QUESTIONS = {
     q("Where do you picture us in five years?", 3),
     q("What's something you've never told me but want to?", 4),
   ],
+
   friendship: [
     q("What's the first thing you noticed about me when we met?", 1),
     q("What's one thing I do that annoys you (be honest)?", 2),
@@ -65,6 +78,7 @@ export const QUESTIONS = {
     q("What's one thing you'd want to do together before we're 80?", 2),
     q("Who would play me in a movie about your life?", 1),
   ],
+
   family: [
     q("What's a family tradition you actually love?", 1),
     q("Who do you take after most in your family, and how?", 1),
@@ -79,6 +93,7 @@ export const QUESTIONS = {
     q("If you could bring back one family gathering exactly as it was, which one?", 2),
     q("What's a nickname from your family you actually don't mind?", 1),
   ],
+
   deep: [
     q("What's something nobody in your life fully knows about you?", 4),
     q("What's your biggest regret so far?", 3),
@@ -97,6 +112,7 @@ export const QUESTIONS = {
     q("What would you want people to say about you after you're gone?", 3),
     q("What's something you're still healing from?", 4),
   ],
+
   funny: [
     q("What's your most embarrassing moment that you can laugh about now?", 1),
     q("What's your weirdest habit that almost nobody knows about?", 1),
@@ -115,6 +131,7 @@ export const QUESTIONS = {
     q("What's the most chaotic thing that's happened on a night out?", 1),
     q("If you were a meme, which one would you be?", 1),
   ],
+
   party: [
     q("What's your go-to karaoke song?", 1),
     q("What's the best party you've ever been to?", 1),
@@ -129,6 +146,7 @@ export const QUESTIONS = {
     q("If we threw a party right now, who's the first person you'd invite?", 1),
     q("What's your signature drink order (alcoholic or not)?", 1),
   ],
+
   firstImpressions: [
     q("What was your actual first impression of me?", 2),
     q("What do you think I noticed about you first?", 2),
@@ -143,6 +161,7 @@ export const QUESTIONS = {
     q("What do you remember about the outfit or vibe I had when we met?", 1),
     q("Looking back, what took you the longest to figure out about me?", 3),
   ],
+
   wouldYouRather: [
     q("Lose your phone forever or never eat your favorite food again?", 1),
     q("Be invisible or be able to read minds?", 1),
@@ -161,6 +180,7 @@ export const QUESTIONS = {
     q("Have a rewind button on life or a pause button?", 1),
     q("Know how you'll die or know when you'll die?", 2),
   ],
+
   confessions: [
     q("What's something you've done that you've never told anyone?", 4),
     q("What's a small lie you've told that turned into a bigger one?", 2),
@@ -177,6 +197,7 @@ export const QUESTIONS = {
     q("What's a habit you have that you're low-key trying to hide?", 2),
     q("What's something you wish you could redo differently?", 3),
   ],
+
   dares: [
     q("Send the last photo in your camera roll, no explanation.", 2),
     q("Do your best impression of the other player right now.", 1),
@@ -193,6 +214,7 @@ export const QUESTIONS = {
     q("Attempt to lick your elbow. Yes, really.", 1),
     q("Give the other player a genuine compliment, out loud, right now.", 1),
   ],
+
   wyd: [
     q("What would you do if you won the lottery tomorrow?", 1),
     q("What would you do if you had 24 hours where nothing was illegal?", 1),
@@ -209,8 +231,7 @@ export const QUESTIONS = {
     q("What would you do if you could erase one memory forever?", 3),
     q("What would you do if you had to give a speech to thousands with no prep?", 1),
   ],
-  // Vote-mode prompts: instead of typing an answer, the group votes for
-  // *which player* the prompt best fits. Works with 3+ players.
+
   vote: [
     q("Who's most likely to become a millionaire?", 1),
     q("Who's most likely to survive a zombie apocalypse?", 1),
@@ -235,20 +256,8 @@ export const QUESTIONS = {
     q("Who's most likely to remember everyone's birthday?", 1),
     q("Who's most likely to become a reality TV star?", 1),
   ],
-};
 
-// ===================================================================
-// BETWEEN US - MASSIVE EXPANDED QUESTION BANKS
-// 100+ questions per category with explicit, authentic youth language
-// ===================================================================
-
-export const QUESTIONS = {
-  // ... your existing categories ...
-
-  // ⚡ VIBE CHECK - 120+ Questions
-  // Attraction, "would you smash", chemistry, real attraction talk
   vibeCheck: [
-    // LEVEL 1 - Light & Playful (30 questions)
     q("If we were both single tomorrow, would you actually smash or nah?", 1),
     q("What's one physical trait of mine that lowkey makes you attracted?", 1),
     q("Do you think we have chemistry, or are we better as friends?", 1),
@@ -279,8 +288,6 @@ export const QUESTIONS = {
     q("Do you think about me differently now than when we met?", 1),
     q("What would make you actually want to be with me?", 1),
     q("Be real - if we were both drunk right now, would anything happen?", 1),
-
-    // LEVEL 2 - Getting Real About Attraction (35 questions)
     q("What's a specific habit I have that completely kills the vibe?", 2),
     q("If we could hook up with zero consequences, would you?", 2),
     q("What's one personality trait of mine that's genuinely attractive?", 2),
@@ -316,8 +323,6 @@ export const QUESTIONS = {
     q("If we were dating, what would be the first thing you'd do with me?", 2),
     q("What's the sexiest version of me you've ever seen?", 2),
     q("Be honest - would you regret hooking up with me or nah?", 2),
-
-    // LEVEL 3 - Vulnerability in Attraction (35 questions)
     q("What scares you most about potentially falling for me?", 3),
     q("If you could change one thing about me to be more into me, what?", 3),
     q("Do you think your feelings for me could go deeper?", 3),
@@ -353,8 +358,6 @@ export const QUESTIONS = {
     q("What's something you want from me that you're afraid to ask?", 3),
     q("If we couldn't tell anyone about us, would you still want it?", 3),
     q("What's the real truth about how you feel?", 3),
-
-    // LEVEL 4 - The Raw Truth (20 questions)
     q("Are we actually in love with each other but too scared to admit it?", 4),
     q("If there were zero consequences, would you choose me over everything?", 4),
     q("What's the honest reason you're not with me right now?", 4),
@@ -377,10 +380,7 @@ export const QUESTIONS = {
     q("Be completely honest - do you see me as your person?", 4),
   ],
 
-  // 🚨 HARD DILEMMAS - 120+ Questions
-  // Real relationship tests, cheating, forgiveness, betrayal
   dilemmas: [
-    // LEVEL 1 - Light Scenarios (30 questions)
     q("If I got drunk and flirted with someone at a party, could you get over it?", 1),
     q("Would you forgive me if I accidentally texted your ex?", 1),
     q("If I lied to protect your feelings, would you want the truth?", 1),
@@ -411,8 +411,6 @@ export const QUESTIONS = {
     q("If I was on my phone a lot around you, would you feel bad?", 1),
     q("Would you forgive me for canceling plans for something better?", 1),
     q("If I made a joke about your insecurity, would you actually forgive me?", 1),
-
-    // LEVEL 2 - Real Scenarios (35 questions)
     q("If I was emotionally close to someone else, would that count as cheating?", 2),
     q("Would you forgive me if I kept a friendship secret because I thought you'd be upset?", 2),
     q("If you found out I still had feelings for an ex, what would you do?", 2),
@@ -448,8 +446,6 @@ export const QUESTIONS = {
     q("If I had to choose between you and something important to me, what would you expect?", 2),
     q("Would you leave me if we wanted different things in life?", 2),
     q("If I was emotionally unavailable for a long time, could you stay?", 2),
-
-    // LEVEL 3 - Uncomfortable Truth (35 questions)
     q("If I physically cheated but it meant nothing, could you forgive me? What if it meant something?", 3),
     q("Have you ever considered leaving me? What was the reason?", 3),
     q("If I was unfaithful, would you want to work through it or leave?", 3),
@@ -485,8 +481,6 @@ export const QUESTIONS = {
     q("Is there a point where you'd give up on us?", 3),
     q("If I was slowly emotionally cheating and didn't realize it, could you forgive it?", 3),
     q("What's your honest assessment - could we survive a major betrayal?", 3),
-
-    // LEVEL 4 - The Real Reckoning (20 questions)
     q("Are you actually happy in this relationship, or are you staying out of comfort?", 4),
     q("What resentment have you been holding that we've never discussed?", 4),
     q("If we broke up tomorrow, what's the honest reason?", 4),
@@ -509,10 +503,7 @@ export const QUESTIONS = {
     q("Are we actually meant to be, or have we been running on fumes?", 4),
   ],
 
-  // 🌱 DEEP GROWTH - 120+ Questions
-  // Personal evolution, real talk, self-awareness, trauma, growth
   growth: [
-    // LEVEL 1 - Self-Awareness (30 questions)
     q("What's something about yourself you're actively trying to change?", 1),
     q("When was the last time you felt genuinely proud of yourself?", 1),
     q("What's a fear that keeps you up at night?", 1),
@@ -543,8 +534,6 @@ export const QUESTIONS = {
     q("What's your biggest accomplishment?", 1),
     q("What scares you most about the future?", 1),
     q("What's something you've never told anyone?", 1),
-
-    // LEVEL 2 - Deeper Self-Knowledge (35 questions)
     q("What part of yourself do you hide from the world, and why?", 2),
     q("What's a toxic pattern you keep repeating?", 2),
     q("What do you want to be remembered for when you die?", 2),
@@ -580,8 +569,6 @@ export const QUESTIONS = {
     q("What's the most honest thing you could say right now?", 2),
     q("What's something you need to forgive yourself for?", 2),
     q("What's a power you didn't know you had until recently?", 2),
-
-    // LEVEL 3 - Raw Vulnerability (35 questions)
     q("What's a belief you hold that you know might be wrong but can't let go of?", 3),
     q("What do you think is your biggest character flaw, and how does it hurt people?", 3),
     q("When was the last time you genuinely felt broken, and are you still healing?", 3),
@@ -617,8 +604,6 @@ export const QUESTIONS = {
     q("What would change if you stopped waiting for permission?", 3),
     q("What's the grief you haven't processed?", 3),
     q("What's a version of yourself you need to let die?", 3),
-
-    // LEVEL 4 - The Real Reckoning (20 questions)
     q("What would it take for you to completely reinvent yourself?", 4),
     q("Are you living the life you actually want or the life you think you should?", 4),
     q("What truth about yourself have you been avoiding?", 4),
@@ -641,10 +626,7 @@ export const QUESTIONS = {
     q("Who do you want to become, and are you brave enough?", 4),
   ],
 
-  // 💘 INTIMACY - 120+ Questions
-  // Sexual, physical, and emotional intimacy for very close people
   intimate: [
-    // LEVEL 1 - Comfortable & Playful (30 questions)
     q("What's your favorite memory of us being physically close?", 1),
     q("What's something I do that makes you feel completely safe?", 1),
     q("Do you like when I take the lead or do you prefer to?", 1),
@@ -675,8 +657,6 @@ export const QUESTIONS = {
     q("What's your favorite time to have sex?", 1),
     q("Do you like being watched?", 1),
     q("What's something simple that gets you going?", 1),
-
-    // LEVEL 2 - Getting Real About Sex (35 questions)
     q("What's something you want more of physically that you've never told me?", 2),
     q("Have I ever done something in bed that surprised you in a good way?", 2),
     q("What's a fantasy you've thought about but never shared?", 2),
@@ -712,8 +692,6 @@ export const QUESTIONS = {
     q("Would you want me to be more vocal?", 2),
     q("What's something that would make sex more exciting for you?", 2),
     q("Do you feel like I actually listen to your needs?", 2),
-
-    // LEVEL 3 - Deep Vulnerability (35 questions)
     q("What's an insecurity you have about your body that you've never told me?", 3),
     q("Is there something I do sexually that makes you uncomfortable?", 3),
     q("What would make you feel truly desired by me?", 3),
@@ -749,8 +727,6 @@ export const QUESTIONS = {
     q("What's a sexual experience you want to have with me?", 3),
     q("Do you think we're sexually compatible?", 3),
     q("What's the most honest thing about your sexuality?", 3),
-
-    // LEVEL 4 - Raw Intimacy (20 questions)
     q("Do you actually feel satisfied in our physical relationship?", 4),
     q("Are you holding back sexually from me?", 4),
     q("What's something you want to try that feels too vulnerable to ask?", 4),
@@ -808,4 +784,3 @@ export function getQuestionCount() {
   }
   return count;
 }
-
