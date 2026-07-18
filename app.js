@@ -337,11 +337,19 @@ function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
+function isCategoryExplicit(key) {
+  return !!(CATEGORY_META[key] && CATEGORY_META[key].explicit);
+}
+
 function buildShuffledQuestions(category, conversationMode) {
   if (category === "custompack") {
     return loadedPack ? shuffle(loadedPack.questions) : [];
   }
-  const pool = category === "mix" ? Object.values(QUESTIONS).flat() : QUESTIONS[category];
+  // "mix" never includes 18+ categories — those require an explicit,
+  // deliberate chip selection (gated by the age-confirmation modal below).
+  const pool = category === "mix"
+    ? Object.entries(QUESTIONS).filter(([key]) => !isCategoryExplicit(key)).flatMap(([, list]) => list)
+    : QUESTIONS[category];
   if (!conversationMode) {
     return shuffle(pool).map((item) => item.text);
   }
@@ -379,15 +387,22 @@ function renderCategoryChips() {
     chip.type = "button";
     chip.className = "chip" + (key === selectedCategory ? " selected" : "");
     chip.style.setProperty("--chip-color", meta.color);
-    chip.textContent = `${meta.emoji} ${meta.label}`;
+    chip.textContent = meta.explicit ? `${meta.emoji} ${meta.label} 🔞` : `${meta.emoji} ${meta.label}`;
     chip.addEventListener("click", () => {
-      selectedCategory = key;
-      [...categoryChipsEl.children].forEach((c) => c.classList.remove("selected"));
-      chip.classList.add("selected");
-      packPanelEl.classList.toggle("hidden", key !== "custompack");
-      if (key === "vote" && Number(maxPlayersSelect.value) < 3) {
-        maxPlayersSelect.value = "3";
+      const selectThisChip = () => {
+        selectedCategory = key;
+        [...categoryChipsEl.children].forEach((c) => c.classList.remove("selected"));
+        chip.classList.add("selected");
+        packPanelEl.classList.toggle("hidden", key !== "custompack");
+        if (key === "vote" && Number(maxPlayersSelect.value) < 3) {
+          maxPlayersSelect.value = "3";
+        }
+      };
+      if (isCategoryExplicit(key) && localStorage.getItem(EXPLICIT_AGE_KEY) !== "true") {
+        showAgeGateModal(selectThisChip);
+        return;
       }
+      selectThisChip();
     });
     categoryChipsEl.appendChild(chip);
   });
@@ -437,6 +452,7 @@ loadPackBtn.addEventListener("click", async () => {
     loadedPack = { code, title: data.title, questions: data.questions };
     packStatusEl.textContent = `✓ Loaded "${data.title}" — ${data.questions.length} questions by ${data.author}`;
     packStatusEl.classList.add("ok");
+    ensureReportPackButton();
   } catch (err) {
     console.error(err);
     toast("Couldn't load that pack — try again.");
@@ -1269,6 +1285,7 @@ async function init() {
         packStatusEl.classList.add("ok");
         renderCategoryChips();
         packPanelEl.classList.remove("hidden");
+        ensureReportPackButton();
         toast("Pack loaded — type your name and create a room");
       }
     } catch (err) {
@@ -1745,3 +1762,103 @@ function applyCardTheme(meta, idx, total) {
   }
 }
 
+// ====== Content Safety: 18+ gate & pack reporting ======
+
+const EXPLICIT_AGE_KEY = "bu_ageConfirmed18";
+
+function showAgeGateModal(onConfirm) {
+  injectAgeGateStyles();
+  const overlay = document.createElement("div");
+  overlay.className = "agegate-overlay";
+  overlay.innerHTML = `
+    <div class="agegate-modal">
+      <p class="agegate-icon">🔞</p>
+      <h3 class="agegate-title">18+ Content</h3>
+      <p class="agegate-text">This category includes sexually explicit questions written for consenting adults. You must be 18 or older to continue.</p>
+      <div class="agegate-actions">
+        <button class="btn btn-primary agegate-continue-btn" type="button">I'm 18+ — Continue</button>
+        <button class="btn btn-secondary agegate-back-btn" type="button">Go Back</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector(".agegate-back-btn").addEventListener("click", close);
+  overlay.querySelector(".agegate-continue-btn").addEventListener("click", () => {
+    localStorage.setItem(EXPLICIT_AGE_KEY, "true");
+    close();
+    onConfirm();
+  });
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+}
+
+function injectAgeGateStyles() {
+  if (document.getElementById("agegate-styles")) return;
+  const style = document.createElement("style");
+  style.id = "agegate-styles";
+  style.textContent = `
+    .agegate-overlay {
+      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.8);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1100; padding: 20px; backdrop-filter: blur(4px);
+    }
+    .agegate-modal {
+      background: var(--paper, #f6efe1); color: var(--ink, #2a2622);
+      border-radius: 16px; max-width: 380px; width: 100%;
+      padding: 30px 24px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      font-family: 'Fraunces', serif;
+      animation: agegate-in 0.25s ease-out;
+    }
+    @keyframes agegate-in {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .agegate-icon { font-size: 38px; margin: 0 0 8px; }
+    .agegate-title { margin: 0 0 10px; font-size: 20px; }
+    .agegate-text { font-size: 14px; line-height: 1.5; opacity: 0.85; margin: 0 0 22px; }
+    .agegate-actions { display: flex; flex-direction: column; gap: 10px; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ---------- Pack reporting ----------
+function ensureReportPackButton() {
+  if (document.getElementById("report-pack-btn")) return;
+  const btn = document.createElement("button");
+  btn.id = "report-pack-btn";
+  btn.type = "button";
+  btn.className = "leave-link report-pack-link";
+  btn.textContent = "🚩 Report this pack";
+  packStatusEl.insertAdjacentElement("afterend", btn);
+  btn.addEventListener("click", reportCurrentPack);
+}
+
+async function reportCurrentPack() {
+  if (!loadedPack || !db) return;
+  const btn = document.getElementById("report-pack-btn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Reporting...";
+  }
+  try {
+    await setDoc(doc(db, "packReports", `${loadedPack.code}_${Date.now()}`), {
+      packCode: loadedPack.code,
+      packTitle: loadedPack.title || "",
+      reportedAt: serverTimestamp(),
+      reportedBy: playerId || "anonymous",
+    });
+    toast("Thanks — this pack has been flagged for review.");
+    if (btn) btn.textContent = "✓ Reported";
+  } catch (err) {
+    console.error("Couldn't submit pack report:", err);
+    toast("Couldn't submit the report — try again.");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🚩 Report this pack";
+    }
+  }
+}
