@@ -1716,3 +1716,32 @@ if (!document.querySelector("style[data-journal]")) {
   styleTag.textContent = journalStyles.replace(/<\/?style>/g, "");
   document.head.appendChild(styleTag);
 }
+
+// ====== Visual & Animation Enhancements ======
+// These power the category-colored card glow and the animated progress bar.
+// (This is the piece that was missing — applyCardTheme was being called
+// above in renderGame/renderVoteGame but was never defined, which crashed
+// every render with a ReferenceError. That's what caused the blank card
+// and the frozen Submit/Skip buttons.)
+
+function ensureProgressBar() {
+  if (document.getElementById("progress-track")) return;
+  const track = document.createElement("div");
+  track.id = "progress-track";
+  track.className = "progress-track";
+  track.innerHTML = '<div id="progress-fill" class="progress-fill"></div>';
+  progressTextEl.insertAdjacentElement("afterend", track);
+}
+
+function applyCardTheme(meta, idx, total) {
+  ensureProgressBar();
+  questionCardEl.style.setProperty("--accent", meta.color);
+  categoryTagEl.style.setProperty("--stamp", meta.color);
+  const fill = document.getElementById("progress-fill");
+  if (fill) {
+    const pct = total ? Math.round(((idx + 1) / total) * 100) : 0;
+    fill.style.width = pct + "%";
+    fill.style.background = meta.color;
+  }
+}
+
