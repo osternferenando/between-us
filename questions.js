@@ -23,10 +23,10 @@ export const CATEGORY_META = {
   vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba" },
   custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c" },
 
-  vibeCheck: { emoji: "⚡", label: "Vibe Check", color: "#e056fd" },
+  vibeCheck: { emoji: "⚡", label: "Vibe Check", color: "#e056fd", explicit: true },
   dilemmas: { emoji: "🚨", label: "Hard Dilemmas", color: "#eb4d4b" },
   growth: { emoji: "🌱", label: "Deep Growth", color: "#2ecc71" },
-  intimate: { emoji: "💘", label: "Intimacy", color: "#f39c12" },
+  intimate: { emoji: "💘", label: "Intimacy", color: "#f39c12", explicit: true },
 };
 
 function q(text, level) {
