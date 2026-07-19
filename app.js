@@ -1996,7 +1996,12 @@ function listenToMessages(code) {
         updateChatBadge();
       }
     },
-    (err) => console.error("Chat listener error:", err)
+    (err) => {
+      console.error("Chat listener error:", err);
+      if (err.code === "permission-denied") {
+        toast("Can't load chat — Firestore rules are blocking the messages subcollection.");
+      }
+    }
   );
 }
 
@@ -2012,7 +2017,11 @@ async function sendChatMessage(text) {
     });
   } catch (err) {
     console.error(err);
-    toast("Couldn't send that message — try again.");
+    if (err.code === "permission-denied") {
+      toast("Chat blocked by Firestore rules — see the note about the messages subcollection.");
+    } else {
+      toast("Couldn't send that message — try again.");
+    }
   }
 }
 
@@ -2196,7 +2205,11 @@ function finishVoiceRecording(mimeType) {
       });
     } catch (err) {
       console.error(err);
-      toast("Couldn't send that voice note — try again.");
+      if (err.code === "permission-denied") {
+        toast("Chat blocked by Firestore rules — see the note about the messages subcollection.");
+      } else {
+        toast("Couldn't send that voice note — try again.");
+      }
     }
   };
   reader.readAsDataURL(blob);
@@ -2215,7 +2228,18 @@ function injectChatStyles() {
   const style = document.createElement("style");
   style.id = "chat-styles";
   style.textContent = `
-    .chat-toggle { top: 68px; }
+    .chat-toggle {
+      position: fixed !important;
+      top: auto !important;
+      left: auto !important;
+      bottom: 22px !important;
+      right: 18px !important;
+      z-index: 500;
+      width: 54px; height: 54px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
     .chat-badge {
       position: absolute; top: -4px; right: -4px;
       background: #c9425a; color: #fff; border-radius: 999px;
