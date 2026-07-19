@@ -379,7 +379,7 @@ function sortedPlayerIds(data) {
 
 // ---------- Category chips ----------
 function renderCategoryChips() {
-  const order = ["mix", "love", "friendship", "family", "deep", "funny", "party", "firstImpressions", "wouldYouRather", "confessions", "dares", "wyd", "vote", "custompack"];
+  const order = ["mix", "love", "friendship", "family", "deep", "funny", "party", "firstImpressions", "wouldYouRather", "confessions", "dares", "wyd", "vote", "vibeCheck", "dilemmas", "growth", "intimate", "custompack"];
   categoryChipsEl.innerHTML = "";
   order.forEach((key) => {
     const meta = CATEGORY_META[key];
@@ -1862,3 +1862,4 @@ async function reportCurrentPack() {
     }
   }
 }
+
