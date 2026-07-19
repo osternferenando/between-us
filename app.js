@@ -5,6 +5,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, runTransaction, serverTimestamp,
+  collection, addDoc, query, orderBy, limit,
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { QUESTIONS, CATEGORY_META } from "./questions.js";
@@ -201,8 +202,14 @@ async function restoreGameState() {
 function leaveRoom() {
   if (unsubscribeRoom) unsubscribeRoom();
   if (unsubscribePresence) unsubscribePresence();
+  if (unsubscribeMessages) unsubscribeMessages();
   unsubscribeRoom = null;
   unsubscribePresence = null;
+  unsubscribeMessages = null;
+  chatMessages = [];
+  lastSeenMessageCount = 0;
+  if (chatToggleBtn) chatToggleBtn.classList.add("hidden");
+  closeChatOverlay();
   roomId = null;
   currentRoomData = null;
   presenceData = {};
@@ -722,6 +729,9 @@ function setupPresence(code, id) {
 // ---------- Realtime listener (Firestore — game state) ----------
 function listenToRoom(code) {
   if (unsubscribeRoom) unsubscribeRoom();
+  ensureChatUI();
+  chatToggleBtn.classList.remove("hidden");
+  listenToMessages(code);
   unsubscribeRoom = onSnapshot(
     doc(db, "rooms", code),
     (snap) => {
@@ -738,6 +748,7 @@ function listenToRoom(code) {
 }
 
 function render(data) {
+  updateChatTypingIndicator(data);
   const playerIds = sortedPlayerIds(data);
   if (playerIds.length < 2 || !data.started) {
     showScreen("waiting");
@@ -1863,3 +1874,412 @@ async function reportCurrentPack() {
   }
 }
 
+// ====== Conversation Mode — live chat inside a room ======
+// Built as an overlay (like the journal/age-gate modals) so it can open on
+// top of Waiting, Game, or End without disturbing whatever's underneath.
+// Messages live in a Firestore subcollection: rooms/{roomId}/messages/{id}
+
+let chatToggleBtn = null;
+let chatOverlayEl = null;
+let chatMessagesEl = null;
+let chatInputEl = null;
+let chatTypingIndicatorEl = null;
+
+let unsubscribeMessages = null;
+let chatMessages = [];
+let chatOverlayOpen = false;
+let lastSeenMessageCount = 0;
+
+let isChatTypingFlagged = false;
+let chatTypingTimer = null;
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingStartTime = null;
+let recordingTimerInterval = null;
+const MAX_VOICE_SECONDS = 30;
+
+// ---------- Build the UI once ----------
+function ensureChatUI() {
+  if (chatOverlayEl) return;
+  injectChatStyles();
+
+  chatToggleBtn = document.createElement("button");
+  chatToggleBtn.id = "chat-toggle-btn";
+  chatToggleBtn.type = "button";
+  chatToggleBtn.className = "memory-toggle chat-toggle hidden";
+  chatToggleBtn.setAttribute("aria-label", "Open chat");
+  chatToggleBtn.innerHTML = '💬<span id="chat-badge" class="chat-badge hidden"></span>';
+  memoryToggleBtn.insertAdjacentElement("afterend", chatToggleBtn);
+  chatToggleBtn.addEventListener("click", openChatOverlay);
+
+  chatOverlayEl = document.createElement("div");
+  chatOverlayEl.id = "chat-overlay";
+  chatOverlayEl.className = "chat-overlay hidden";
+  chatOverlayEl.innerHTML = `
+    <div class="chat-panel">
+      <div class="chat-header">
+        <span class="chat-header-title">💬 Just Chatting</span>
+        <button type="button" id="chat-close-btn" class="chat-close-btn" aria-label="Close chat">×</button>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <p id="chat-typing-indicator" class="typing-indicator hidden"></p>
+      <form id="chat-form" class="chat-form">
+        <textarea id="chat-input" rows="1" maxlength="500" placeholder="Type a message..."></textarea>
+        <button type="button" id="chat-voice-btn" class="chat-voice-btn" aria-label="Hold to record a voice note">🎤</button>
+        <button type="submit" class="chat-send-btn" aria-label="Send">➤</button>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(chatOverlayEl);
+
+  chatMessagesEl = document.getElementById("chat-messages");
+  chatInputEl = document.getElementById("chat-input");
+  chatTypingIndicatorEl = document.getElementById("chat-typing-indicator");
+
+  document.getElementById("chat-close-btn").addEventListener("click", closeChatOverlay);
+  chatOverlayEl.addEventListener("click", (e) => {
+    if (e.target === chatOverlayEl) closeChatOverlay();
+  });
+
+  chatMessagesEl.addEventListener("click", handleChatAction);
+
+  document.getElementById("chat-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = chatInputEl.value;
+    if (!text.trim()) return;
+    sendChatMessage(text);
+    chatInputEl.value = "";
+    stopChatTyping();
+  });
+  chatInputEl.addEventListener("input", handleChatTypingInput);
+
+  const voiceBtn = document.getElementById("chat-voice-btn");
+  if (navigator.mediaDevices && window.MediaRecorder) {
+    voiceBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+    voiceBtn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      startVoiceRecording();
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((evt) =>
+      voiceBtn.addEventListener(evt, stopVoiceRecording)
+    );
+  } else {
+    voiceBtn.classList.add("hidden");
+  }
+}
+
+function openChatOverlay() {
+  ensureChatUI();
+  chatOverlayOpen = true;
+  chatOverlayEl.classList.remove("hidden");
+  renderChatMessages();
+  chatInputEl.focus();
+}
+
+function closeChatOverlay() {
+  chatOverlayOpen = false;
+  if (chatOverlayEl) chatOverlayEl.classList.add("hidden");
+}
+
+// ---------- Firestore: listen + send ----------
+function listenToMessages(code) {
+  if (unsubscribeMessages) unsubscribeMessages();
+  const messagesQuery = query(collection(db, "rooms", code, "messages"), orderBy("createdAt", "asc"), limit(200));
+  unsubscribeMessages = onSnapshot(
+    messagesQuery,
+    (snap) => {
+      chatMessages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (chatOverlayOpen) {
+        renderChatMessages();
+      } else {
+        updateChatBadge();
+      }
+    },
+    (err) => console.error("Chat listener error:", err)
+  );
+}
+
+async function sendChatMessage(text) {
+  const trimmed = text.trim();
+  if (!trimmed || !roomId || !db) return;
+  try {
+    await addDoc(collection(db, "rooms", roomId, "messages"), {
+      senderId: playerId,
+      type: "text",
+      text: trimmed,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't send that message — try again.");
+  }
+}
+
+// ---------- Rendering ----------
+function renderChatMessages() {
+  if (!chatMessagesEl || !currentRoomData) return;
+  chatMessagesEl.innerHTML = chatMessages.map(renderChatMessageHTML).join("");
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  lastSeenMessageCount = chatMessages.length;
+  updateChatBadge();
+}
+
+function renderChatMessageHTML(msg) {
+  const isMe = msg.senderId === playerId;
+  const reactions = msg.reactions || {};
+  const myReact = reactions[playerId];
+  const theirEntry = Object.entries(reactions).find(([id]) => id !== playerId);
+  const theirReact = theirEntry ? theirEntry[1] : null;
+
+  let bodyHTML;
+  if (msg.type === "voice") {
+    bodyHTML = `
+      <button class="voice-play-btn" data-action="play-voice" data-msg-id="${msg.id}" type="button">▶</button>
+      <span class="voice-duration">${msg.audioDuration || 0}s voice note</span>
+    `;
+  } else {
+    bodyHTML = `<p>${escapeHtml(msg.text || "")}</p>`;
+  }
+
+  const cardBtn = msg.type === "text"
+    ? `<button class="chat-to-card-btn" data-action="to-card" data-msg-id="${msg.id}" type="button" title="Turn into a question card">🎴</button>`
+    : "";
+
+  const reactBtns = !isMe
+    ? `<div class="chat-reaction-bar">
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="❤️" class="${myReact === "❤️" ? "active" : ""}" type="button">❤️</button>
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="😂" class="${myReact === "😂" ? "active" : ""}" type="button">😂</button>
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="🔥" class="${myReact === "🔥" ? "active" : ""}" type="button">🔥</button>
+      </div>`
+    : "";
+
+  return `<div class="chat-bubble ${isMe ? "me" : "them"}">
+    ${bodyHTML}
+    ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
+    <div class="chat-bubble-actions">${cardBtn}${reactBtns}</div>
+  </div>`;
+}
+
+function handleChatAction(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const { action, msgId, emoji } = btn.dataset;
+  const msg = chatMessages.find((m) => m.id === msgId);
+  if (!msg) return;
+
+  if (action === "play-voice") {
+    playVoiceMessage(msg);
+  } else if (action === "to-card") {
+    if (msg.text) {
+      pendingMediatorQuestion = msg.text;
+      toast("Queued — it'll show up as your next card 🎴");
+    }
+  } else if (action === "react") {
+    reactToChatMessage(msgId, emoji);
+  }
+}
+
+function playVoiceMessage(msg) {
+  if (!msg.audioData) return;
+  const audio = new Audio(msg.audioData);
+  audio.play().catch((err) => {
+    console.error("Playback failed:", err);
+    toast("Couldn't play that voice note.");
+  });
+}
+
+async function reactToChatMessage(messageId, emoji) {
+  if (!roomId || !db) return;
+  try {
+    await updateDoc(doc(db, "rooms", roomId, "messages", messageId), { [`reactions.${playerId}`]: emoji });
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't send that reaction.");
+  }
+}
+
+function updateChatBadge() {
+  const badge = document.getElementById("chat-badge");
+  if (!badge) return;
+  const unread = chatMessages.length - lastSeenMessageCount;
+  if (!chatOverlayOpen && unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+// ---------- Typing indicator (separate from the card-answer one) ----------
+function handleChatTypingInput() {
+  if (!roomId || !db) return;
+  if (!isChatTypingFlagged) {
+    isChatTypingFlagged = true;
+    updateDoc(doc(db, "rooms", roomId), { [`chatTyping.${playerId}`]: true }).catch(() => {});
+  }
+  clearTimeout(chatTypingTimer);
+  chatTypingTimer = setTimeout(stopChatTyping, 1500);
+}
+
+function stopChatTyping() {
+  isChatTypingFlagged = false;
+  clearTimeout(chatTypingTimer);
+  if (roomId && db) {
+    updateDoc(doc(db, "rooms", roomId), { [`chatTyping.${playerId}`]: false }).catch(() => {});
+  }
+}
+
+function updateChatTypingIndicator(data) {
+  if (!chatTypingIndicatorEl || !data || !data.players) return;
+  const others = Object.keys(data.players).filter((id) => id !== playerId);
+  const typingNames = others
+    .filter((id) => data.chatTyping && data.chatTyping[id])
+    .map((id) => data.players[id].name);
+  chatTypingIndicatorEl.classList.toggle("hidden", typingNames.length === 0);
+  if (typingNames.length) chatTypingIndicatorEl.textContent = `✍️ ${typingNames.join(", ")} typing...`;
+}
+
+// ---------- Voice notes (press-and-hold, capped at 30s, stored as base64) ----------
+async function startVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      finishVoiceRecording(mediaRecorder.mimeType || "audio/webm");
+    };
+    mediaRecorder.start();
+    recordingStartTime = Date.now();
+    updateVoiceRecordingUI(true);
+    recordingTimerInterval = setInterval(() => {
+      const elapsed = (Date.now() - recordingStartTime) / 1000;
+      if (elapsed >= MAX_VOICE_SECONDS) stopVoiceRecording();
+    }, 200);
+  } catch (err) {
+    console.error("Mic access failed:", err);
+    toast("Couldn't access your microphone.");
+  }
+}
+
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+  }
+  clearInterval(recordingTimerInterval);
+  updateVoiceRecordingUI(false);
+}
+
+function finishVoiceRecording(mimeType) {
+  const duration = Math.round((Date.now() - recordingStartTime) / 1000);
+  if (duration < 1) return; // too short — probably an accidental tap
+  const blob = new Blob(recordedChunks, { type: mimeType });
+  const reader = new FileReader();
+  reader.onloadend = async () => {
+    const base64 = reader.result;
+    if (base64.length > 900000) {
+      toast("That voice note is too long — try a shorter one.");
+      return;
+    }
+    try {
+      await addDoc(collection(db, "rooms", roomId, "messages"), {
+        senderId: playerId,
+        type: "voice",
+        audioData: base64,
+        audioDuration: duration,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't send that voice note — try again.");
+    }
+  };
+  reader.readAsDataURL(blob);
+}
+
+function updateVoiceRecordingUI(isRecording) {
+  const voiceBtn = document.getElementById("chat-voice-btn");
+  if (!voiceBtn) return;
+  voiceBtn.classList.toggle("recording", isRecording);
+  voiceBtn.textContent = isRecording ? "⏺" : "🎤";
+}
+
+// ---------- Styles (self-contained, no style.css edits needed) ----------
+function injectChatStyles() {
+  if (document.getElementById("chat-styles")) return;
+  const style = document.createElement("style");
+  style.id = "chat-styles";
+  style.textContent = `
+    .chat-toggle { top: 68px; }
+    .chat-badge {
+      position: absolute; top: -4px; right: -4px;
+      background: #c9425a; color: #fff; border-radius: 999px;
+      font-size: 11px; line-height: 1; padding: 3px 6px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .chat-overlay {
+      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.72);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 950; backdrop-filter: blur(3px);
+    }
+    .chat-panel {
+      background: var(--paper, #f6efe1); color: var(--ink, #2a2622);
+      width: 100%; max-width: 480px; height: 82vh; max-height: 720px;
+      border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.35);
+      animation: chat-slide-up 0.25s ease-out;
+    }
+    @keyframes chat-slide-up {
+      from { transform: translateY(24px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .chat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 18px; border-bottom: 1px solid rgba(0,0,0,0.08);
+      font-family: 'Fraunces', serif; font-size: 17px;
+    }
+    .chat-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: inherit; opacity: 0.6; }
+    .chat-close-btn:hover { opacity: 1; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .chat-bubble {
+      max-width: 78%; padding: 10px 14px; border-radius: 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; line-height: 1.4;
+      position: relative;
+    }
+    .chat-bubble.me { align-self: flex-end; background: var(--gold, #c9a15a); color: #241f14; border-bottom-right-radius: 4px; }
+    .chat-bubble.them { align-self: flex-start; background: rgba(0,0,0,0.06); border-bottom-left-radius: 4px; }
+    .chat-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .chat-bubble-actions { display: flex; gap: 6px; margin-top: 6px; opacity: 0.7; }
+    .chat-to-card-btn, .chat-reaction-bar button {
+      background: none; border: none; font-size: 13px; cursor: pointer; padding: 2px 4px; border-radius: 6px;
+    }
+    .chat-reaction-bar button.active { background: rgba(0,0,0,0.12); }
+    .msg-reaction-shown { display: block; font-size: 13px; margin-top: 4px; }
+    .voice-play-btn {
+      background: rgba(0,0,0,0.15); border: none; border-radius: 999px;
+      width: 30px; height: 30px; cursor: pointer; font-size: 13px; margin-right: 8px;
+    }
+    .voice-duration { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+    .chat-form { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(0,0,0,0.08); align-items: flex-end; }
+    .chat-form textarea {
+      flex: 1; resize: none; border-radius: 14px; border: 1px solid rgba(0,0,0,0.15);
+      padding: 10px 12px; font-family: inherit; font-size: 15px; max-height: 90px;
+    }
+    .chat-send-btn, .chat-voice-btn {
+      border: none; border-radius: 999px; width: 42px; height: 42px; flex-shrink: 0;
+      font-size: 17px; cursor: pointer; background: var(--gold, #c9a15a); color: #241f14;
+    }
+    .chat-voice-btn { background: rgba(0,0,0,0.08); color: inherit; touch-action: none; user-select: none; }
+    .chat-voice-btn.recording { background: #c9425a; color: #fff; animation: chat-pulse 1s infinite; }
+    @keyframes chat-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+  `;
+  document.head.appendChild(style);
+}
