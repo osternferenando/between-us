@@ -4,8 +4,8 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
 import {
-  getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, runTransaction, serverTimestamp,
-  collection, addDoc, query, orderBy, limit,
+  getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot, runTransaction, serverTimestamp,
+  collection, addDoc, query, orderBy, limit, where,
 } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { QUESTIONS, CATEGORY_META } from "./questions.js";
@@ -570,7 +570,8 @@ createRoomBtn.addEventListener("click", async () => {
     if (customCode) {
       const existing = await getDoc(doc(db, "rooms", customCode));
       if (existing.exists()) {
-        toast("That code's taken — try another or leave it blank.");
+        toast("Welcome back — joining your existing room 👋");
+        await attemptJoinRoom(customCode);
         return;
       }
       code = customCode;
@@ -615,6 +616,7 @@ if (desiredCount !== "all") {
     roomId = code;
     playerId = playerId; // Already set above
     saveGameState(code, playerId);
+    saveRecentRoom(code, selectedCategory);
     roomCodeDisplayEl.textContent = code;
     showScreen("waiting");
     listenToRoom(code);
@@ -628,7 +630,43 @@ if (desiredCount !== "all") {
   }
 });
 
-// ---------- Join room ----------
+// ---------- Join room (reusable — also used by Recent Rooms and the
+// "welcome back" redirect when creating with a code that already exists) ----------
+async function attemptJoinRoom(code) {
+  playerId = getPlayerId();
+  const ref = doc(db, "rooms", code);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    toast("That room code doesn't exist.");
+    return false;
+  }
+  const data = snap.data();
+  const alreadyIn = data.players && data.players[playerId];
+  const playerCount = Object.keys(data.players || {}).length;
+  const maxPlayers = data.maxPlayers || 2;
+  if (!alreadyIn && data.started) {
+    toast("That game has already started.");
+    return false;
+  }
+  if (!alreadyIn && playerCount >= maxPlayers) {
+    toast(`That room already has ${maxPlayers} players.`);
+    return false;
+  }
+  if (!alreadyIn) {
+    const updates = { [`players.${playerId}`]: { name: nameInput.value.trim(), joinedAt: Date.now() } };
+    if (maxPlayers === 2 && playerCount + 1 >= 2) {
+      updates.started = true;
+    }
+    await updateDoc(ref, updates);
+  }
+  roomId = code;
+  saveGameState(code, playerId);
+  saveRecentRoom(code, data.category);
+  listenToRoom(code);
+  setupPresence(code, playerId);
+  return true;
+}
+
 joinRoomBtn.addEventListener("click", async () => {
   if (!requireName() || !db) return;
   const code = joinCodeInput.value.trim().toUpperCase();
@@ -639,36 +677,7 @@ joinRoomBtn.addEventListener("click", async () => {
   joinRoomBtn.disabled = true;
   joinRoomBtn.textContent = "Joining...";
   try {
-    playerId = getPlayerId();
-    const ref = doc(db, "rooms", code);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      toast("That room code doesn't exist.");
-      return;
-    }
-    const data = snap.data();
-    const alreadyIn = data.players && data.players[playerId];
-    const playerCount = Object.keys(data.players || {}).length;
-    const maxPlayers = data.maxPlayers || 2;
-    if (!alreadyIn && data.started) {
-      toast("That game has already started.");
-      return;
-    }
-    if (!alreadyIn && playerCount >= maxPlayers) {
-      toast(`That room already has ${maxPlayers} players.`);
-      return;
-    }
-    if (!alreadyIn) {
-      const updates = { [`players.${playerId}`]: { name: nameInput.value.trim(), joinedAt: Date.now() } };
-      if (maxPlayers === 2 && playerCount + 1 >= 2) {
-        updates.started = true;
-      }
-      await updateDoc(ref, updates);
-    }
-    roomId = code;
-    saveGameState(code, playerId);
-    listenToRoom(code);
-    setupPresence(code, playerId);
+    await attemptJoinRoom(code);
   } catch (err) {
     console.error(err);
     toast("Couldn't join the room — check your Firebase setup.");
@@ -1265,6 +1274,8 @@ async function init() {
     return; // Game state restored, no need to show landing page
   }
 
+  renderRecentRoomsSection();
+
   const savedTheme = localStorage.getItem("bu_theme");
   if (savedTheme === "light") {
     document.body.setAttribute("data-theme", "light");
@@ -1817,7 +1828,7 @@ function injectAgeGateStyles() {
       z-index: 1100; padding: 20px; backdrop-filter: blur(4px);
     }
     .agegate-modal {
-      background: var(--paper, #f6efe1); color: var(--ink, #2a2622);
+      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
       border-radius: 16px; max-width: 380px; width: 100%;
       padding: 30px 24px; text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,0.4);
@@ -1903,6 +1914,7 @@ const MAX_VOICE_SECONDS = 30;
 function ensureChatUI() {
   if (chatOverlayEl) return;
   injectChatStyles();
+  injectCapsuleStyles();
 
   chatToggleBtn = document.createElement("button");
   chatToggleBtn.id = "chat-toggle-btn";
@@ -1920,7 +1932,10 @@ function ensureChatUI() {
     <div class="chat-panel">
       <div class="chat-header">
         <span class="chat-header-title">💬 Just Chatting</span>
-        <button type="button" id="chat-close-btn" class="chat-close-btn" aria-label="Close chat">×</button>
+        <div class="chat-header-actions">
+          <button type="button" id="capsule-open-btn" class="chat-header-icon-btn" aria-label="Seal a time capsule">🔒</button>
+          <button type="button" id="chat-close-btn" class="chat-close-btn" aria-label="Close chat">×</button>
+        </div>
       </div>
       <div id="chat-messages" class="chat-messages"></div>
       <p id="chat-typing-indicator" class="typing-indicator hidden"></p>
@@ -1938,6 +1953,9 @@ function ensureChatUI() {
   chatTypingIndicatorEl = document.getElementById("chat-typing-indicator");
 
   document.getElementById("chat-close-btn").addEventListener("click", closeChatOverlay);
+  document.getElementById("capsule-open-btn").addEventListener("click", openCapsuleComposer);
+  ensureCapsuleUI();
+  startCapsuleWatcher();
   chatOverlayEl.addEventListener("click", (e) => {
     if (e.target === chatOverlayEl) closeChatOverlay();
   });
@@ -2040,6 +2058,10 @@ function renderChatMessageHTML(msg) {
   const myReact = reactions[playerId];
   const theirEntry = Object.entries(reactions).find(([id]) => id !== playerId);
   const theirReact = theirEntry ? theirEntry[1] : null;
+
+  if (msg.type === "capsule") {
+    return renderCapsuleBubbleHTML(msg, isMe, myReact, theirReact);
+  }
 
   let bodyHTML;
   if (msg.type === "voice") {
@@ -2230,16 +2252,18 @@ function injectChatStyles() {
   style.textContent = `
     .chat-toggle {
       position: fixed !important;
-      top: auto !important;
+      top: 50% !important;
       left: auto !important;
-      bottom: 22px !important;
-      right: 18px !important;
+      bottom: auto !important;
+      right: 14px !important;
+      transform: translateY(-50%);
       z-index: 500;
-      width: 54px; height: 54px;
+      width: 52px; height: 52px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
+      font-size: 22px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.35);
     }
+    .chat-toggle:active { transform: translateY(-50%) scale(0.94); }
     .chat-badge {
       position: absolute; top: -4px; right: -4px;
       background: #c9425a; color: #fff; border-radius: 999px;
@@ -2252,7 +2276,7 @@ function injectChatStyles() {
       z-index: 950; backdrop-filter: blur(3px);
     }
     .chat-panel {
-      background: var(--paper, #f6efe1); color: var(--ink, #2a2622);
+      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
       width: 100%; max-width: 480px; height: 82vh; max-height: 720px;
       border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
       box-shadow: 0 -10px 40px rgba(0,0,0,0.35);
@@ -2292,7 +2316,13 @@ function injectChatStyles() {
     .chat-form { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(0,0,0,0.08); align-items: flex-end; }
     .chat-form textarea {
       flex: 1; resize: none; border-radius: 14px; border: 1px solid rgba(0,0,0,0.15);
-      padding: 10px 12px; font-family: inherit; font-size: 15px; max-height: 90px;
+      padding: 10px 12px; font-family: inherit; font-size: 15px;
+      min-height: 42px; max-height: 90px; margin-bottom: 0;
+    }
+    #chat-typing-indicator.typing-indicator {
+      color: var(--on-card-soft, #6b5f78);
+      margin: 0 16px 4px;
+      text-align: left;
     }
     .chat-send-btn, .chat-voice-btn {
       border: none; border-radius: 999px; width: 42px; height: 42px; flex-shrink: 0;
@@ -2304,6 +2334,364 @@ function injectChatStyles() {
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.08); }
     }
+  `;
+  document.head.appendChild(style);
+}
+
+// ====== Time Capsule — seal a message, unlocks on a future date ======
+// Lives as a special message type inside the same messages subcollection,
+// so it appears right in the chat timeline, sorted by when it was sealed —
+// just locked until msg.unlockAt passes.
+
+let capsuleOverlayEl = null;
+let celebratedCapsules = new Set();
+let capsuleWatcherInterval = null;
+
+function ensureCapsuleUI() {
+  if (capsuleOverlayEl) return;
+  capsuleOverlayEl = document.createElement("div");
+  capsuleOverlayEl.id = "capsule-overlay";
+  capsuleOverlayEl.className = "capsule-overlay hidden";
+  capsuleOverlayEl.innerHTML = `
+    <div class="capsule-modal">
+      <p class="capsule-modal-title">🔒 Seal a Time Capsule</p>
+      <p class="capsule-modal-subtitle">Write something for later — it stays sealed until the date you pick.</p>
+      <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future..."></textarea>
+      <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label>
+      <input type="datetime-local" id="capsule-date-input">
+      <div class="capsule-modal-actions">
+        <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button>
+        <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(capsuleOverlayEl);
+
+  document.getElementById("capsule-cancel-btn").addEventListener("click", closeCapsuleComposer);
+  document.getElementById("capsule-seal-btn").addEventListener("click", sealTimeCapsule);
+  capsuleOverlayEl.addEventListener("click", (e) => {
+    if (e.target === capsuleOverlayEl) closeCapsuleComposer();
+  });
+}
+
+function openCapsuleComposer() {
+  ensureCapsuleUI();
+  const dateInput = document.getElementById("capsule-date-input");
+  dateInput.min = new Date(Date.now() + 60000).toISOString().slice(0, 16);
+  document.getElementById("capsule-text-input").value = "";
+  dateInput.value = "";
+  capsuleOverlayEl.classList.remove("hidden");
+}
+
+function closeCapsuleComposer() {
+  if (capsuleOverlayEl) capsuleOverlayEl.classList.add("hidden");
+}
+
+async function sealTimeCapsule() {
+  const text = document.getElementById("capsule-text-input").value.trim();
+  const dateVal = document.getElementById("capsule-date-input").value;
+
+  if (!text) {
+    toast("Write something for the capsule first.");
+    return;
+  }
+  if (!dateVal) {
+    toast("Pick an unlock date.");
+    return;
+  }
+  const unlockAt = new Date(dateVal).getTime();
+  if (isNaN(unlockAt) || unlockAt <= Date.now()) {
+    toast("Pick a date in the future.");
+    return;
+  }
+  if (!roomId || !db) return;
+
+  const sealBtn = document.getElementById("capsule-seal-btn");
+  sealBtn.disabled = true;
+  sealBtn.textContent = "Sealing...";
+  try {
+    await addDoc(collection(db, "rooms", roomId, "messages"), {
+      senderId: playerId,
+      type: "capsule",
+      text,
+      unlockAt,
+      createdAt: serverTimestamp(),
+    });
+    closeCapsuleComposer();
+    toast("Sealed 🔒 — it'll unlock on the date you picked.");
+  } catch (err) {
+    console.error(err);
+    if (err.code === "permission-denied") {
+      toast("Blocked by Firestore rules — same messages subcollection as chat.");
+    } else {
+      toast("Couldn't seal that capsule — try again.");
+    }
+  } finally {
+    sealBtn.disabled = false;
+    sealBtn.textContent = "Seal it 🔒";
+  }
+}
+
+function renderCapsuleBubbleHTML(msg, isMe, myReact, theirReact) {
+  const isUnlocked = Date.now() >= msg.unlockAt;
+  const senderName = isMe ? "You" : (currentRoomData?.players?.[msg.senderId]?.name || "Them");
+
+  if (!isUnlocked) {
+    return `<div class="chat-bubble capsule-bubble locked ${isMe ? "me" : "them"}">
+      <p class="capsule-label">🔒 Time Capsule from ${escapeHtml(senderName)}</p>
+      <p class="capsule-unlock-date">Opens ${formatCapsuleDate(msg.unlockAt)}</p>
+    </div>`;
+  }
+
+  const reactBtns = !isMe
+    ? `<div class="chat-reaction-bar">
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="❤️" class="${myReact === "❤️" ? "active" : ""}" type="button">❤️</button>
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="🥹" class="${myReact === "🥹" ? "active" : ""}" type="button">🥹</button>
+        <button data-action="react" data-msg-id="${msg.id}" data-emoji="😭" class="${myReact === "😭" ? "active" : ""}" type="button">😭</button>
+      </div>`
+    : "";
+
+  return `<div class="chat-bubble capsule-bubble unlocked ${isMe ? "me" : "them"}">
+    <p class="capsule-label">📦 Time Capsule — opened</p>
+    <p>${escapeHtml(msg.text || "")}</p>
+    ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
+    ${reactBtns}
+  </div>`;
+}
+
+function formatCapsuleDate(ms) {
+  const d = new Date(ms);
+  const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const daysAway = Math.ceil((ms - Date.now()) / 86400000);
+  if (daysAway <= 0) return dateStr;
+  if (daysAway === 1) return `${dateStr} (tomorrow)`;
+  if (daysAway <= 60) return `${dateStr} (in ${daysAway} days)`;
+  return dateStr;
+}
+
+// Re-checks lock state over time (not just on new Firestore writes) so a
+// capsule visibly unlocks the moment its date passes while chat is open,
+// and celebrates ones that unlocked recently rather than stale old ones.
+function checkCapsuleUnlocks() {
+  const now = Date.now();
+  let justUnlockedAny = false;
+  chatMessages.forEach((msg) => {
+    if (msg.type !== "capsule") return;
+    const recentlyUnlocked = msg.unlockAt <= now && now - msg.unlockAt < 120000;
+    if (recentlyUnlocked && !celebratedCapsules.has(msg.id)) {
+      celebratedCapsules.add(msg.id);
+      justUnlockedAny = true;
+    }
+  });
+  if (justUnlockedAny) {
+    fireConfetti();
+    toast("📦 A time capsule just opened!");
+  }
+}
+
+function startCapsuleWatcher() {
+  if (capsuleWatcherInterval) return;
+  capsuleWatcherInterval = setInterval(() => {
+    checkCapsuleUnlocks();
+    if (chatOverlayOpen) renderChatMessages();
+  }, 20000);
+}
+
+function injectCapsuleStyles() {
+  if (document.getElementById("capsule-styles")) return;
+  const style = document.createElement("style");
+  style.id = "capsule-styles";
+  style.textContent = `
+    .chat-header-actions { display: flex; align-items: center; gap: 10px; }
+    .chat-header-icon-btn { background: none; border: none; font-size: 19px; cursor: pointer; opacity: 0.75; padding: 2px; }
+    .chat-header-icon-btn:hover { opacity: 1; }
+
+    .capsule-overlay {
+      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1050; padding: 20px; backdrop-filter: blur(3px);
+    }
+    .capsule-modal {
+      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
+      border-radius: 16px; max-width: 420px; width: 100%;
+      padding: 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      animation: agegate-in 0.25s ease-out;
+    }
+    .capsule-modal-title { font-family: 'Fraunces', serif; font-size: 19px; margin: 0 0 6px; }
+    .capsule-modal-subtitle { font-size: 13px; opacity: 0.75; margin: 0 0 16px; line-height: 1.4; }
+    #capsule-text-input {
+      width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15);
+      padding: 10px 12px; font-family: inherit; font-size: 15px; resize: vertical;
+      margin-bottom: 14px;
+    }
+    .capsule-date-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 6px; }
+    #capsule-date-input {
+      width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15);
+      padding: 10px 12px; font-family: inherit; font-size: 15px;
+    }
+    .capsule-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .capsule-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem; }
+    .capsule-btn.cancel { background: rgba(0,0,0,0.08); color: inherit; }
+    .capsule-btn.seal { background: var(--gold, #c9a15a); color: #241c30; }
+
+    .chat-bubble.capsule-bubble {
+      border: 1.5px dashed rgba(0,0,0,0.25);
+      background: rgba(0,0,0,0.05);
+      max-width: 88%;
+    }
+    .capsule-bubble.locked { text-align: center; }
+    .capsule-label { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.03em; opacity: 0.8; }
+    .capsule-unlock-date { margin: 4px 0 0; font-size: 0.85rem; font-weight: 600; }
+    .capsule-bubble.unlocked { border-style: solid; }
+    .capsule-bubble.unlocked p:not(.capsule-label) { margin: 6px 0 0; font-family: 'Fraunces', serif; font-style: italic; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ====== Recent Rooms — the actual fix for "my capsule disappeared" ======
+// Nothing in Firestore was ever deleted — the real problem was that once
+// you left a room, the browser had no memory of the code to get back in.
+// This keeps a small local list of rooms you've been in, with a live
+// capsule-status check, so getting back is one tap instead of "hope you
+// wrote the code down somewhere."
+
+const RECENT_ROOMS_KEY = "bu_recentRooms";
+const MAX_RECENT_ROOMS = 8;
+
+function saveRecentRoom(code, category) {
+  try {
+    let recents = JSON.parse(localStorage.getItem(RECENT_ROOMS_KEY) || "[]");
+    recents = recents.filter((r) => r.code !== code);
+    recents.unshift({ code, category: category || "mix", lastVisited: Date.now() });
+    recents = recents.slice(0, MAX_RECENT_ROOMS);
+    localStorage.setItem(RECENT_ROOMS_KEY, JSON.stringify(recents));
+  } catch (err) {
+    console.error("Couldn't save recent room:", err);
+  }
+}
+
+function getRecentRooms() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_ROOMS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function ensureRecentRoomsUI() {
+  if (document.getElementById("recent-rooms-section")) return;
+  const modeButtonsEl = document.getElementById("mode-buttons");
+  if (!modeButtonsEl) return;
+  injectRecentRoomsStyles();
+
+  const section = document.createElement("div");
+  section.id = "recent-rooms-section";
+  section.className = "recent-rooms-section";
+  section.innerHTML = `
+    <p class="recent-rooms-label">↩ Your recent rooms</p>
+    <div id="recent-rooms-list" class="recent-rooms-list"></div>
+  `;
+  modeButtonsEl.insertAdjacentElement("beforebegin", section);
+}
+
+async function renderRecentRoomsSection() {
+  if (!db) return;
+  const recents = getRecentRooms();
+  if (!recents.length) return;
+
+  ensureRecentRoomsUI();
+  const listEl = document.getElementById("recent-rooms-list");
+  if (!listEl) return;
+
+  listEl.innerHTML = recents
+    .map((r) => {
+      const meta = CATEGORY_META[r.category] || CATEGORY_META.mix;
+      return `<button type="button" class="recent-room-row" data-code="${escapeHtml(r.code)}">
+        <span class="recent-room-main">
+          <span class="recent-room-code">${escapeHtml(r.code)}</span>
+          <span class="recent-room-category">${meta.emoji} ${escapeHtml(meta.label)}</span>
+        </span>
+        <span class="recent-room-status" id="recent-status-${escapeHtml(r.code)}">···</span>
+      </button>`;
+    })
+    .join("");
+
+  listEl.querySelectorAll(".recent-room-row").forEach((row) => {
+    row.addEventListener("click", () => rejoinRecentRoom(row.dataset.code));
+  });
+
+  recents.forEach((r) => fetchCapsuleStatusForRoom(r.code));
+}
+
+async function fetchCapsuleStatusForRoom(code) {
+  const statusEl = document.getElementById(`recent-status-${code}`);
+  if (!statusEl) return;
+  try {
+    const capsulesQuery = query(collection(db, "rooms", code, "messages"), where("type", "==", "capsule"));
+    const snap = await getDocs(capsulesQuery);
+    const now = Date.now();
+    let lockedCount = 0;
+    let nextUnlock = null;
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.unlockAt > now) {
+        lockedCount++;
+        if (nextUnlock === null || data.unlockAt < nextUnlock) nextUnlock = data.unlockAt;
+      }
+    });
+    if (lockedCount > 0) {
+      statusEl.textContent = `🔒 ${lockedCount} sealed — opens ${formatCapsuleDate(nextUnlock)}`;
+      statusEl.classList.add("has-capsule");
+    } else {
+      statusEl.textContent = "Tap to reopen";
+      statusEl.classList.remove("has-capsule");
+    }
+  } catch (err) {
+    console.error("Couldn't check capsules for room", code, err);
+    statusEl.textContent = "Tap to reopen";
+  }
+}
+
+async function rejoinRecentRoom(code) {
+  if (!requireName()) return;
+  const row = document.querySelector(`.recent-room-row[data-code="${code}"]`);
+  if (row) row.disabled = true;
+  try {
+    const ok = await attemptJoinRoom(code);
+    if (!ok && row) row.disabled = false;
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't reconnect — try again.");
+    if (row) row.disabled = false;
+  }
+}
+
+function injectRecentRoomsStyles() {
+  if (document.getElementById("recent-rooms-styles")) return;
+  const style = document.createElement("style");
+  style.id = "recent-rooms-styles";
+  style.textContent = `
+    .recent-rooms-section { margin-bottom: 18px; }
+    .recent-rooms-label {
+      font-family: var(--font-mono, monospace); font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--on-card-soft, #6b5f78); margin: 0 0 8px; font-weight: 500;
+    }
+    .recent-rooms-list { display: flex; flex-direction: column; gap: 8px; }
+    .recent-room-row {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 12px 14px; border-radius: 10px;
+      border: 1.5px dashed var(--border-card, rgba(36,28,48,0.18));
+      background: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
+      font-family: inherit; cursor: pointer; text-align: left;
+    }
+    .recent-room-row:active { transform: scale(0.98); }
+    .recent-room-row:disabled { opacity: 0.5; cursor: default; }
+    .recent-room-main { display: flex; flex-direction: column; gap: 2px; }
+    .recent-room-code { font-family: var(--font-mono, monospace); font-weight: 700; font-size: 0.92rem; letter-spacing: 0.04em; }
+    .recent-room-category { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); }
+    .recent-room-status { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); text-align: right; white-space: nowrap; margin-left: 10px; }
+    .recent-room-status.has-capsule { color: var(--garnet, #9c3348); font-weight: 600; }
   `;
   document.head.appendChild(style);
 }
