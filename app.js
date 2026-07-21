@@ -396,7 +396,7 @@ function renderCategoryChips() {
     chip.style.setProperty("--chip-color", meta.color);
     chip.textContent = meta.explicit ? `${meta.emoji} ${meta.label} 🔞` : `${meta.emoji} ${meta.label}`;
     chip.addEventListener("click", () => {
-      const selectThisChip = () => {
+      selectCategoryWithGate(key, () => {
         selectedCategory = key;
         [...categoryChipsEl.children].forEach((c) => c.classList.remove("selected"));
         chip.classList.add("selected");
@@ -404,12 +404,7 @@ function renderCategoryChips() {
         if (key === "vote" && Number(maxPlayersSelect.value) < 3) {
           maxPlayersSelect.value = "3";
         }
-      };
-      if (isCategoryExplicit(key) && localStorage.getItem(EXPLICIT_AGE_KEY) !== "true") {
-        showAgeGateModal(selectThisChip);
-        return;
-      }
-      selectThisChip();
+      });
     });
     categoryChipsEl.appendChild(chip);
   });
@@ -529,21 +524,24 @@ packCopyLinkBtn.addEventListener("click", async () => {
 
 packUseNowBtn.addEventListener("click", async () => {
   const code = packSavedPanelEl._code;
-  loadedPack = {
+  const pack = {
     code,
     title: packTitleInput.value.trim(),
     questions: packQuestionsInput.value.split("\n").map((l) => l.trim()).filter(Boolean),
   };
-  selectedCategory = "custompack";
   packCodeInput.value = code;
-  packStatusEl.textContent = `✓ Loaded "${loadedPack.title}" — ${loadedPack.questions.length} questions by you`;
+  packStatusEl.textContent = `✓ Loaded "${pack.title}" — ${pack.questions.length} questions by you`;
   packStatusEl.classList.add("ok");
   showScreen("landing");
   if (!requireName()) return;
   createStep.classList.remove("hidden");
   joinStep.classList.add("hidden");
-  renderCategoryChips();
-  packPanelEl.classList.remove("hidden");
+  selectCategoryWithGate("custompack", () => {
+    loadedPack = pack;
+    selectedCategory = "custompack";
+    renderCategoryChips();
+    packPanelEl.classList.remove("hidden");
+  });
 });
 
 // ---------- Create room ----------
@@ -1268,6 +1266,7 @@ soundToggleBtn.addEventListener("click", () => {
 // ---------- Init ----------
 async function init() {
   renderCategoryChips();
+  ensureDeckBuilderButton();
   
   // Try to restore active game first (if user refreshed mid-game)
   if (await restoreGameState()) {
@@ -1300,15 +1299,18 @@ async function init() {
       const snap = await getDoc(doc(db, "packs", prefillPack.toUpperCase()));
       if (snap.exists()) {
         const data = snap.data();
-        loadedPack = { code: prefillPack.toUpperCase(), title: data.title, questions: data.questions };
-        selectedCategory = "custompack";
+        const pack = { code: prefillPack.toUpperCase(), title: data.title, questions: data.questions };
         packCodeInput.value = prefillPack.toUpperCase();
         packStatusEl.textContent = `✓ Loaded "${data.title}" — ${data.questions.length} questions by ${data.author}`;
         packStatusEl.classList.add("ok");
-        renderCategoryChips();
-        packPanelEl.classList.remove("hidden");
         ensureReportPackButton();
         toast("Pack loaded — type your name and create a room");
+        selectCategoryWithGate("custompack", () => {
+          loadedPack = pack;
+          selectedCategory = "custompack";
+          renderCategoryChips();
+          packPanelEl.classList.remove("hidden");
+        });
       }
     } catch (err) {
       console.error(err);
@@ -1788,15 +1790,16 @@ function applyCardTheme(meta, idx, total) {
 
 const EXPLICIT_AGE_KEY = "bu_ageConfirmed18";
 
-function showAgeGateModal(onConfirm) {
+function showAgeGateModal(onConfirm, message) {
   injectAgeGateStyles();
   const overlay = document.createElement("div");
   overlay.className = "agegate-overlay";
+  const text = message || "This category includes sexually explicit questions written for consenting adults. You must be 18 or older to continue.";
   overlay.innerHTML = `
     <div class="agegate-modal">
       <p class="agegate-icon">🔞</p>
       <h3 class="agegate-title">18+ Content</h3>
-      <p class="agegate-text">This category includes sexually explicit questions written for consenting adults. You must be 18 or older to continue.</p>
+      <p class="agegate-text">${text}</p>
       <div class="agegate-actions">
         <button class="btn btn-primary agegate-continue-btn" type="button">I'm 18+ — Continue</button>
         <button class="btn btn-secondary agegate-back-btn" type="button">Go Back</button>
@@ -1815,6 +1818,20 @@ function showAgeGateModal(onConfirm) {
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
+}
+
+// Single source of truth for the 18+ check — every path that can select a
+// gated category (chip clicks, write-your-own-pack, shared pack links, and
+// the AI deck builder) routes through this instead of duplicating the check.
+function selectCategoryWithGate(key, onSelected) {
+  if (!isCategoryExplicit(key) || localStorage.getItem(EXPLICIT_AGE_KEY) === "true") {
+    onSelected();
+    return;
+  }
+  const message = key === "custompack"
+    ? "Custom packs are written by players and aren't reviewed — they may include mature or explicit content. You must be 18 or older to continue."
+    : undefined;
+  showAgeGateModal(onSelected, message);
 }
 
 function injectAgeGateStyles() {
@@ -2695,3 +2712,120 @@ function injectRecentRoomsStyles() {
   `;
   document.head.appendChild(style);
 }
+
+// ====== AI Custom Deck Builder ======
+// Describe a vibe/situation, Gemini writes a matching deck, it gets saved
+// as a normal shareable pack (same packs/{code} structure, same report
+// button, same 18+ gate as any other custom pack).
+
+const DECKBUILDER_API_URL = "https://between-us-backend.vercel.app/api/deckbuilder";
+let generatedDeckQuestions = [];
+let deckBuilderOverlayEl = null;
+
+function ensureDeckBuilderButton() {
+  if (document.getElementById("deckbuilder-open-btn")) return;
+  const anchorBtn = document.getElementById("open-pack-creator-btn");
+  if (!anchorBtn) return;
+  const btn = document.createElement("button");
+  btn.id = "deckbuilder-open-btn";
+  btn.type = "button";
+  btn.className = "leave-link pack-creator-link";
+  btn.textContent = "✨ Generate a deck with AI →";
+  anchorBtn.insertAdjacentElement("afterend", btn);
+  btn.addEventListener("click", openDeckBuilderModal);
+}
+
+function ensureDeckBuilderUI() {
+  if (deckBuilderOverlayEl) return;
+  injectDeckBuilderStyles();
+
+  deckBuilderOverlayEl = document.createElement("div");
+  deckBuilderOverlayEl.id = "deckbuilder-overlay";
+  deckBuilderOverlayEl.className = "deckbuilder-overlay hidden";
+  deckBuilderOverlayEl.innerHTML = `
+    <div class="deckbuilder-modal">
+      <p class="deckbuilder-title">✨ AI Deck Builder</p>
+      <p class="deckbuilder-subtitle">Describe the vibe or situation — I'll write a custom deck for it.</p>
+      <textarea id="deckbuilder-description" rows="3" maxlength="500" placeholder="e.g. together 6 months, want to go deeper — or game night with my best friends, keep it light and hilarious"></textarea>
+      <label class="deckbuilder-count-label" for="deckbuilder-count">How many questions?</label>
+      <select id="deckbuilder-count" class="select-input">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="30">30</option>
+      </select>
+      <div id="deckbuilder-preview" class="deckbuilder-preview hidden"></div>
+      <div class="deckbuilder-actions">
+        <button type="button" id="deckbuilder-cancel-btn" class="deckbuilder-btn cancel">Cancel</button>
+        <button type="button" id="deckbuilder-generate-btn" class="deckbuilder-btn generate">Generate ✨</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(deckBuilderOverlayEl);
+
+  document.getElementById("deckbuilder-cancel-btn").addEventListener("click", closeDeckBuilderModal);
+  deckBuilderOverlayEl.addEventListener("click", (e) => {
+    if (e.target === deckBuilderOverlayEl) closeDeckBuilderModal();
+  });
+  document.getElementById("deckbuilder-generate-btn").addEventListener("click", async () => {
+    const genBtn = document.getElementById("deckbuilder-generate-btn");
+    if (genBtn.dataset.ready === "true") {
+      await useGeneratedDeck();
+    } else {
+      await generateDeckWithAI();
+    }
+  });
+}
+
+function openDeckBuilderModal() {
+  ensureDeckBuilderUI();
+  document.getElementById("deckbuilder-description").value = "";
+  document.getElementById("deckbuilder-preview").classList.add("hidden");
+  const genBtn = document.getElementById("deckbuilder-generate-btn");
+  genBtn.textContent = "Generate ✨";
+  genBtn.dataset.ready = "false";
+  generatedDeckQuestions = [];
+  deckBuilderOverlayEl.classList.remove("hidden");
+}
+
+function closeDeckBuilderModal() {
+  if (deckBuilderOverlayEl) deckBuilderOverlayEl.classList.add("hidden");
+}
+
+async function generateDeckWithAI() {
+  const description = document.getElementById("deckbuilder-description").value.trim();
+  const count = document.getElementById("deckbuilder-count").value;
+  if (!description) {
+    toast("Describe the vibe first.");
+    return;
+  }
+  const genBtn = document.getElementById("deckbuilder-generate-btn");
+  const previewEl = document.getElementById("deckbuilder-preview");
+  genBtn.disabled = true;
+  genBtn.textContent = "Generating...";
+  previewEl.classList.add("hidden");
+
+  try {
+    const res = await fetch(DECKBUILDER_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, count }),
+    });
+    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+    const result = await res.json();
+    if (!result.success || !result.questions || !result.questions.length) {
+      throw new Error("No questions returned");
+    }
+
+    generatedDeckQuestions = result.questions;
+    previewEl.innerHTML =
+      `<p class="deckbuilder-preview-title">Preview (${result.questions.length} questions):</p>` +
+      result.questions.slice(0, 4).map((q) => `<p class="deckbuilder-preview-q">• ${escapeHtml(q)}</p>`).join("") +
+      (result.questions.length > 4 ? `<p class="deckbuilder-preview-more">+ ${result.questions.length - 4} more</p>` : "");
+    previewEl.classList.remove("hidden");
+
+    genBtn.textContent = "Use This Deck ✓";
+    genBtn.dataset.ready = "true";
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't generate a deck — try again.");
+    genBtn.textContent = 
