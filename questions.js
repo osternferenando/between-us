@@ -21,7 +21,7 @@ export const CATEGORY_META = {
   dares: { emoji: "😈", label: "Dares", color: "#a1452a" },
   wyd: { emoji: "🤔", label: "What Would You Do", color: "#45566b" },
   vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba" },
-  custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c" },
+  custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c", explicit: true },
 
   vibeCheck: { emoji: "⚡", label: "Vibe Check", color: "#e056fd", explicit: true },
   dilemmas: { emoji: "🚨", label: "Hard Dilemmas", color: "#eb4d4b" },
