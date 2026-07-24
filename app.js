@@ -1950,6 +1950,7 @@ function ensureChatUI() {
   chatOverlayEl.className = "chat-overlay hidden";
   chatOverlayEl.innerHTML = `
     <div class="chat-panel">
+      <div class="chat-sheet-handle" aria-hidden="true"></div>
       <div class="chat-header">
         <span class="chat-header-title">💬 Just Chatting</span>
         <div class="chat-header-actions">
@@ -2005,19 +2006,48 @@ function ensureChatUI() {
   } else {
     voiceBtn.classList.add("hidden");
   }
+
+  // Keep the sheet's true height in sync with the visual viewport so the
+  // mobile keyboard pushes the panel up instead of covering the composer.
+  // Purely presentational — no chat/game logic depends on this.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncChatOverlayViewport);
+    window.visualViewport.addEventListener("scroll", syncChatOverlayViewport);
+  }
+}
+
+function syncChatOverlayViewport() {
+  if (!chatOverlayEl || !window.visualViewport) return;
+  const vv = window.visualViewport;
+  chatOverlayEl.style.height = `${vv.height}px`;
+  chatOverlayEl.style.top = `${vv.offsetTop}px`;
 }
 
 function openChatOverlay() {
   ensureChatUI();
   chatOverlayOpen = true;
-  chatOverlayEl.classList.remove("hidden");
+  chatOverlayEl.classList.remove("hidden", "chat-closing");
+  syncChatOverlayViewport();
   renderChatMessages();
   chatInputEl.focus();
 }
 
 function closeChatOverlay() {
+  if (!chatOverlayOpen) return;
   chatOverlayOpen = false;
-  if (chatOverlayEl) chatOverlayEl.classList.add("hidden");
+  if (!chatOverlayEl) return;
+  const panel = chatOverlayEl.querySelector(".chat-panel");
+  const finishClose = () => {
+    chatOverlayEl.classList.add("hidden");
+    chatOverlayEl.classList.remove("chat-closing");
+  };
+  chatOverlayEl.classList.add("chat-closing");
+  if (panel) {
+    panel.addEventListener("animationend", finishClose, { once: true });
+    setTimeout(finishClose, 300); // fallback if the animation is skipped (e.g. reduced motion)
+  } else {
+    finishClose();
+  }
 }
 
 // ---------- Firestore: listen + send ----------
@@ -2291,29 +2321,85 @@ function injectChatStyles() {
       font-family: 'IBM Plex Mono', monospace;
     }
     .chat-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.72);
+      position: fixed; top: 0; left: 0; right: 0; height: 100dvh;
+      background: rgba(20, 16, 12, 0.5);
       display: flex; align-items: flex-end; justify-content: center;
-      z-index: 950; backdrop-filter: blur(3px);
+      z-index: 950;
+      backdrop-filter: blur(9px) saturate(140%);
+      -webkit-backdrop-filter: blur(9px) saturate(140%);
+      animation: chat-backdrop-in 0.28s var(--ease-smooth, ease-out);
+    }
+    .chat-overlay.chat-closing {
+      animation: chat-backdrop-out 0.24s var(--ease-smooth, ease-out) forwards;
     }
     .chat-panel {
       background: var(--card, #f6efe1); color: var(--on-card, #241c30);
-      width: 100%; max-width: 480px; height: 82vh; max-height: 720px;
-      border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.35);
-      animation: chat-slide-up 0.25s ease-out;
+      width: 100%; max-width: 480px;
+      height: min(88vh, 780px);
+      max-height: calc(100dvh - 20px);
+      border-radius: 28px 28px 0 0; display: flex; flex-direction: column;
+      box-shadow: 0 -16px 48px rgba(0,0,0,0.32), 0 -2px 0 rgba(255,255,255,0.05) inset;
+      animation: chat-sheet-in 0.4s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
     }
-    @keyframes chat-slide-up {
-      from { transform: translateY(24px); opacity: 0; }
+    .chat-overlay.chat-closing .chat-panel {
+      animation: chat-sheet-out 0.26s var(--ease-smooth, ease-in) forwards;
+    }
+    @keyframes chat-sheet-in {
+      from { transform: translateY(100%); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes chat-sheet-out {
+      from { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(60px); opacity: 0; }
+    }
+    @keyframes chat-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes chat-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+    .chat-sheet-handle {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 0 2px;
+    }
+    .chat-sheet-handle::before {
+      content: ""; width: 36px; height: 4px; border-radius: 999px;
+      background: var(--on-card-soft, #6b5f78); opacity: 0.32;
     }
     .chat-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 18px; border-bottom: 1px solid rgba(0,0,0,0.08);
+      flex-shrink: 0;
+      padding: 6px 18px 16px; border-bottom: 1px solid rgba(0,0,0,0.08);
       font-family: 'Fraunces', serif; font-size: 17px;
+    }
+    @media (min-width: 640px) {
+      .chat-overlay { align-items: center; }
+      .chat-sheet-handle { display: none; }
+      .chat-panel {
+        height: min(640px, 82vh);
+        max-height: calc(100dvh - 48px);
+        border-radius: var(--radius-lg, 26px);
+        box-shadow: var(--shadow-card-lg, 0 20px 60px rgba(0,0,0,0.35));
+      }
+      @keyframes chat-sheet-in {
+        from { transform: translateY(16px) scale(0.98); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
+      }
+      @keyframes chat-sheet-out {
+        from { transform: translateY(0) scale(1); opacity: 1; }
+        to { transform: translateY(10px) scale(0.98); opacity: 0; }
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chat-overlay, .chat-panel,
+      .chat-overlay.chat-closing, .chat-overlay.chat-closing .chat-panel {
+        animation: none !important;
+      }
     }
     .chat-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: inherit; opacity: 0.6; }
     .chat-close-btn:hover { opacity: 1; }
-    .chat-messages { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .chat-messages {
+      flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+    }
     .chat-bubble {
       max-width: 78%; padding: 10px 14px; border-radius: 16px;
       font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; line-height: 1.4;
@@ -2333,7 +2419,11 @@ function injectChatStyles() {
       width: 30px; height: 30px; cursor: pointer; font-size: 13px; margin-right: 8px;
     }
     .voice-duration { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
-    .chat-form { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(0,0,0,0.08); align-items: flex-end; }
+    .chat-form {
+      display: flex; gap: 8px; flex-shrink: 0;
+      padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid rgba(0,0,0,0.08); align-items: flex-end;
+    }
     .chat-form textarea {
       flex: 1; resize: none; border-radius: 14px; border: 1px solid rgba(0,0,0,0.15);
       padding: 10px 12px; font-family: inherit; font-size: 15px;
@@ -2343,6 +2433,7 @@ function injectChatStyles() {
       color: var(--on-card-soft, #6b5f78);
       margin: 0 16px 4px;
       text-align: left;
+      flex-shrink: 0;
     }
     .chat-send-btn, .chat-voice-btn {
       border: none; border-radius: 999px; width: 42px; height: 42px; flex-shrink: 0;
