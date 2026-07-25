@@ -2428,7 +2428,7 @@ function injectChatStyles() {
       background: var(--card, #f6efe1); color: var(--on-card, #241c30);
       width: 100%; max-width: 480px;
       height: 100%;
-      max-height: min(88vh, 780px);
+      max-height: min(82vh, 760px);
       border-radius: 28px 28px 0 0; display: flex; flex-direction: column;
       box-shadow: 0 -16px 48px rgba(0,0,0,0.32), 0 -2px 0 rgba(255,255,255,0.05) inset;
       animation: chat-sheet-in 0.4s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
@@ -2450,7 +2450,7 @@ function injectChatStyles() {
     .chat-sheet-handle {
       flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
-      padding: 14px 0 10px;
+      padding: 10px 0 6px;
       touch-action: none;
       cursor: grab;
     }
@@ -2461,9 +2461,9 @@ function injectChatStyles() {
     .chat-header {
       display: flex; align-items: center; justify-content: space-between;
       flex-shrink: 0;
-      padding: 6px 18px 16px; border-bottom: 1px solid var(--border-card, rgba(0,0,0,0.08));
+      padding: 4px 18px 10px; border-bottom: 1px solid var(--border-card, rgba(0,0,0,0.08));
     }
-    .chat-header-identity { display: flex; flex-direction: column; gap: 2px; }
+    .chat-header-identity { display: flex; flex-direction: column; gap: 1px; }
     .chat-header-title {
       font-family: var(--font-display, 'Fraunces', serif);
       font-weight: 600; font-size: 18px; line-height: 1.15;
@@ -2509,11 +2509,11 @@ function injectChatStyles() {
     .chat-bubble {
       max-width: min(74%, 320px); padding: 11px 15px; border-radius: 19px;
       font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif); font-size: 15px; line-height: 1.48;
-      position: relative; margin-top: 14px;
+      position: relative; margin-top: 8px;
       box-shadow: 0 1px 1px rgba(0,0,0,0.05), 0 4px 10px rgba(0,0,0,0.07);
     }
     .chat-bubble:first-child { margin-top: 0; }
-    .chat-bubble.group-continued { margin-top: 3px; }
+    .chat-bubble.group-continued { margin-top: 2px; }
     .chat-bubble.has-shown-reaction { margin-bottom: 12px; }
     .chat-bubble.me { align-self: flex-end; background: var(--gold, #c9a15a); color: #241f14; }
     .chat-bubble.me.group-end { border-bottom-right-radius: 6px; }
@@ -2579,17 +2579,17 @@ function injectChatStyles() {
     .voice-duration { font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 12.5px; opacity: 0.85; }
     .chat-form {
       display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0;
-      margin: 4px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+      margin: 2px 14px calc(8px + env(safe-area-inset-bottom, 0px));
       padding: 6px 6px 6px 16px;
       background: var(--card-2, #fffaf1);
       border: 1px solid var(--border-card, rgba(36,28,48,0.12));
       border-radius: 24px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.04), 0 8px 20px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 3px 10px rgba(0,0,0,0.05);
       transition: box-shadow 0.2s var(--ease-smooth, ease), border-color 0.2s var(--ease-smooth, ease);
     }
     .chat-form:focus-within {
       border-color: var(--gold, #c9a15a);
-      box-shadow: 0 0 0 3px var(--gold-soft, rgba(201,161,90,0.16)), 0 8px 20px rgba(0,0,0,0.08);
+      box-shadow: 0 0 0 3px var(--gold-soft, rgba(201,161,90,0.16)), 0 3px 10px rgba(0,0,0,0.05);
     }
     .chat-form textarea {
       flex: 1; resize: none; border: none; background: transparent; outline: none;
@@ -2847,14 +2847,18 @@ function injectCapsuleStyles() {
     .capsule-btn.seal { background: var(--gold, #c9a15a); color: #241c30; }
 
     .chat-bubble.capsule-bubble {
-      border: 1.5px dashed rgba(0,0,0,0.25);
-      background: rgba(0,0,0,0.05);
+      align-self: center;
+      border: 1.5px dashed var(--gold, #c9a15a);
+      background: var(--gold-soft, rgba(201,161,90,0.16));
       max-width: 88%;
     }
     .capsule-bubble.locked { text-align: center; }
     .capsule-label { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.03em; opacity: 0.8; }
     .capsule-unlock-date { margin: 4px 0 0; font-size: 0.85rem; font-weight: 600; }
-    .capsule-bubble.unlocked { border-style: solid; }
+    .capsule-bubble.unlocked {
+      border-style: solid;
+      box-shadow: 0 0 0 1px var(--gold-soft, rgba(201,161,90,0.16)), 0 4px 14px rgba(0,0,0,0.08);
+    }
     .capsule-bubble.unlocked p:not(.capsule-label) { margin: 6px 0 0; font-family: 'Fraunces', serif; font-style: italic; }
   `;
   document.head.appendChild(style);
