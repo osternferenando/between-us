@@ -2195,11 +2195,15 @@ function renderChatMessageHTML(msg, group) {
   const { groupStart, groupEnd } = group || { groupStart: true, groupEnd: true };
   const isMe = msg.senderId === playerId;
   const reactions = msg.reactions || {};
+  const myReact = reactions[playerId];
   const theirEntry = Object.entries(reactions).find(([id]) => id !== playerId);
   const theirReact = theirEntry ? theirEntry[1] : null;
+  // On my own messages, the reaction worth showing is the other player's.
+  // On their messages, it's mine — that's the confirmation that was missing.
+  const shownReact = isMe ? theirReact : myReact;
 
   if (msg.type === "capsule") {
-    return renderCapsuleBubbleHTML(msg, isMe, theirReact);
+    return renderCapsuleBubbleHTML(msg, isMe, shownReact);
   }
 
   let bodyHTML;
@@ -2220,12 +2224,12 @@ function renderChatMessageHTML(msg, group) {
     isMe ? "me" : "them",
     groupStart ? "group-start" : "group-continued",
     groupEnd ? "group-end" : "",
-    theirReact ? "has-shown-reaction" : "",
+    shownReact ? "has-shown-reaction" : "",
   ].filter(Boolean).join(" ");
 
   return `<div class="${bubbleClasses}" data-msg-id="${msg.id}">
     ${bodyHTML}
-    ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
+    ${shownReact ? `<span class="msg-reaction-shown">${shownReact}</span>` : ""}
   </div>`;
 }
 
@@ -2900,7 +2904,7 @@ async function sealTimeCapsule() {
   }
 }
 
-function renderCapsuleBubbleHTML(msg, isMe, theirReact) {
+function renderCapsuleBubbleHTML(msg, isMe, shownReact) {
   const isUnlocked = Date.now() >= msg.unlockAt;
   const senderName = isMe ? "You" : (currentRoomData?.players?.[msg.senderId]?.name || "Them");
 
@@ -2914,7 +2918,7 @@ function renderCapsuleBubbleHTML(msg, isMe, theirReact) {
   return `<div class="chat-bubble capsule-bubble unlocked ${isMe ? "me" : "them"}" data-msg-id="${msg.id}">
     <p class="capsule-label">📦 Time Capsule — opened</p>
     <p>${escapeHtml(msg.text || "")}</p>
-    ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
+    ${shownReact ? `<span class="msg-reaction-shown">${shownReact}</span>` : ""}
   </div>`;
 }
 
