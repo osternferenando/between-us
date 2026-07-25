@@ -1926,6 +1926,10 @@ let lastSeenMessageCount = 0;
 let isChatTypingFlagged = false;
 let chatTypingTimer = null;
 
+let bubbleLongPressTimer = null;
+let bubbleLongPressStart = null;
+let suppressNextBubbleClick = false;
+
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingStartTime = null;
@@ -1964,6 +1968,7 @@ function ensureChatUI() {
         </div>
       </div>
       <div id="chat-messages" class="chat-messages"></div>
+      <div id="chat-context-menu" class="chat-context-menu hidden" role="menu"></div>
       <p id="chat-typing-indicator" class="typing-indicator hidden"></p>
       <form id="chat-form" class="chat-form">
         <textarea id="chat-input" rows="1" maxlength="500" placeholder="Type a message..."></textarea>
@@ -1987,7 +1992,16 @@ function ensureChatUI() {
     if (e.target === chatOverlayEl) closeChatOverlay();
   });
 
-  chatMessagesEl.addEventListener("click", handleChatAction);
+  chatMessagesEl.addEventListener("click", (e) => {
+    if (suppressNextBubbleClick) {
+      suppressNextBubbleClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handleChatAction(e);
+  });
+  attachBubbleLongPress();
 
   document.getElementById("chat-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -2100,6 +2114,8 @@ function closeChatOverlay() {
   if (!chatOverlayOpen) return;
   chatOverlayOpen = false;
   if (!chatOverlayEl) return;
+  cancelBubbleLongPress();
+  closeChatContextMenu();
   const panel = chatOverlayEl.querySelector(".chat-panel");
   const finishClose = () => {
     chatOverlayEl.classList.add("hidden");
@@ -2160,6 +2176,7 @@ async function sendChatMessage(text) {
 // ---------- Rendering ----------
 function renderChatMessages() {
   if (!chatMessagesEl || !currentRoomData) return;
+  closeChatContextMenu();
   chatMessagesEl.innerHTML = chatMessages
     .map((msg, i) => {
       const prev = chatMessages[i - 1];
@@ -2178,12 +2195,11 @@ function renderChatMessageHTML(msg, group) {
   const { groupStart, groupEnd } = group || { groupStart: true, groupEnd: true };
   const isMe = msg.senderId === playerId;
   const reactions = msg.reactions || {};
-  const myReact = reactions[playerId];
   const theirEntry = Object.entries(reactions).find(([id]) => id !== playerId);
   const theirReact = theirEntry ? theirEntry[1] : null;
 
   if (msg.type === "capsule") {
-    return renderCapsuleBubbleHTML(msg, isMe, myReact, theirReact);
+    return renderCapsuleBubbleHTML(msg, isMe, theirReact);
   }
 
   let bodyHTML;
@@ -2199,18 +2215,6 @@ function renderChatMessageHTML(msg, group) {
     bodyHTML = `<p>${escapeHtml(msg.text || "")}</p>`;
   }
 
-  const cardBtn = msg.type === "text"
-    ? `<button class="chat-to-card-btn" data-action="to-card" data-msg-id="${msg.id}" type="button" title="Turn into a question card">🎴</button>`
-    : "";
-
-  const reactBtns = !isMe
-    ? `<div class="chat-reaction-bar">
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="❤️" class="${myReact === "❤️" ? "active" : ""}" type="button" aria-label="React with heart">❤️</button>
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="😂" class="${myReact === "😂" ? "active" : ""}" type="button" aria-label="React with laugh">😂</button>
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="🔥" class="${myReact === "🔥" ? "active" : ""}" type="button" aria-label="React with fire">🔥</button>
-      </div>`
-    : "";
-
   const bubbleClasses = [
     "chat-bubble",
     isMe ? "me" : "them",
@@ -2219,10 +2223,9 @@ function renderChatMessageHTML(msg, group) {
     theirReact ? "has-shown-reaction" : "",
   ].filter(Boolean).join(" ");
 
-  return `<div class="${bubbleClasses}">
+  return `<div class="${bubbleClasses}" data-msg-id="${msg.id}">
     ${bodyHTML}
     ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
-    ${(cardBtn || reactBtns) ? `<div class="chat-bubble-actions">${cardBtn}${reactBtns}</div>` : ""}
   </div>`;
 }
 
@@ -2243,6 +2246,123 @@ function handleChatAction(e) {
   } else if (action === "react") {
     reactToChatMessage(msgId, emoji);
   }
+}
+
+// ---------- Long-press context menu (reactions + turn-into-card) ----------
+// Native iOS-style: hold a bubble, a small menu pops up above/below it.
+// Reuses the exact same data-action/data-msg-id contract as before — only
+// how you reach these actions changed, not what they do or how they're stored.
+function attachBubbleLongPress() {
+  chatMessagesEl.addEventListener("pointerdown", (e) => {
+    const bubble = e.target.closest(".chat-bubble");
+    if (!bubble || !bubble.dataset.msgId) return;
+    bubbleLongPressStart = { x: e.clientX, y: e.clientY };
+    bubbleLongPressTimer = setTimeout(() => {
+      bubbleLongPressTimer = null;
+      openChatContextMenu(bubble);
+    }, 420);
+  });
+  chatMessagesEl.addEventListener("pointermove", (e) => {
+    if (!bubbleLongPressTimer || !bubbleLongPressStart) return;
+    const dx = e.clientX - bubbleLongPressStart.x;
+    const dy = e.clientY - bubbleLongPressStart.y;
+    if (Math.hypot(dx, dy) > 10) cancelBubbleLongPress();
+  });
+  chatMessagesEl.addEventListener("pointerup", cancelBubbleLongPress);
+  chatMessagesEl.addEventListener("pointerleave", cancelBubbleLongPress);
+  chatMessagesEl.addEventListener("pointercancel", cancelBubbleLongPress);
+  chatMessagesEl.addEventListener("scroll", () => {
+    cancelBubbleLongPress();
+    closeChatContextMenu();
+  }, { passive: true });
+
+  const menu = document.getElementById("chat-context-menu");
+  menu.addEventListener("click", (e) => {
+    handleChatAction(e);
+    closeChatContextMenu();
+  });
+}
+
+function cancelBubbleLongPress() {
+  if (bubbleLongPressTimer) {
+    clearTimeout(bubbleLongPressTimer);
+    bubbleLongPressTimer = null;
+  }
+}
+
+function openChatContextMenu(bubbleEl) {
+  const msgId = bubbleEl.dataset.msgId;
+  const msg = chatMessages.find((m) => m.id === msgId);
+  if (!msg) return;
+  const isMe = msg.senderId === playerId;
+  const reactions = msg.reactions || {};
+  const myReact = reactions[playerId];
+
+  let canReact = false;
+  let emojiSet = [];
+  let canCard = false;
+
+  if (msg.type === "capsule") {
+    canReact = !isMe && Date.now() >= msg.unlockAt;
+    emojiSet = ["❤️", "🥹", "😭"];
+  } else {
+    canReact = !isMe;
+    emojiSet = ["❤️", "😂", "🔥"];
+    canCard = msg.type === "text";
+  }
+  if (!canReact && !canCard) return;
+
+  const menu = document.getElementById("chat-context-menu");
+  menu.innerHTML = `
+    ${canReact ? `<div class="chat-context-reactions">${emojiSet.map((em) =>
+      `<button data-action="react" data-msg-id="${msg.id}" data-emoji="${em}" class="${myReact === em ? "active" : ""}" type="button" aria-label="React with ${em}">${em}</button>`
+    ).join("")}</div>` : ""}
+    ${canCard ? `<button class="chat-context-card-btn" data-action="to-card" data-msg-id="${msg.id}" type="button">🎴 Turn into a card</button>` : ""}
+  `;
+
+  suppressNextBubbleClick = true;
+  setTimeout(() => { suppressNextBubbleClick = false; }, 500); // safety net in case click never follows
+
+  positionContextMenu(menu, bubbleEl);
+  document.addEventListener("pointerdown", handleContextMenuOutsideClick, { capture: true });
+}
+
+function positionContextMenu(menu, bubbleEl) {
+  const panelEl = chatOverlayEl.querySelector(".chat-panel");
+  const panelRect = panelEl.getBoundingClientRect();
+  const bubbleRect = bubbleEl.getBoundingClientRect();
+
+  menu.classList.remove("hidden", "visible", "flipped");
+  menu.style.visibility = "hidden";
+  const menuRect = menu.getBoundingClientRect();
+  menu.style.visibility = "";
+
+  let top = bubbleRect.top - menuRect.height - 10;
+  let flipped = false;
+  if (top < panelRect.top + 8) {
+    top = bubbleRect.bottom + 10;
+    flipped = true;
+  }
+  let left = bubbleRect.left + bubbleRect.width / 2 - menuRect.width / 2;
+  left = Math.min(Math.max(left, panelRect.left + 8), panelRect.right - menuRect.width - 8);
+
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.classList.toggle("flipped", flipped);
+  requestAnimationFrame(() => menu.classList.add("visible"));
+}
+
+function closeChatContextMenu() {
+  const menu = document.getElementById("chat-context-menu");
+  if (!menu || menu.classList.contains("hidden")) return;
+  menu.classList.remove("visible");
+  document.removeEventListener("pointerdown", handleContextMenuOutsideClick, { capture: true });
+  setTimeout(() => menu.classList.add("hidden"), 200);
+}
+
+function handleContextMenuOutsideClick(e) {
+  const menu = document.getElementById("chat-context-menu");
+  if (menu && !menu.contains(e.target)) closeChatContextMenu();
 }
 
 function playVoiceMessage(msg, btn) {
@@ -2531,25 +2651,7 @@ function injectChatStyles() {
     }
     .chat-bubble.them.group-end { border-bottom-left-radius: 6px; }
     .chat-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
-    .chat-bubble-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
-    .chat-to-card-btn, .chat-reaction-bar button {
-      background: rgba(0,0,0,0.08); border: none; font-size: 12.5px; cursor: pointer;
-      width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-      border-radius: 999px; opacity: 0.75;
-      transition: transform 0.15s var(--ease-spring, ease), opacity 0.15s ease, background 0.15s ease;
-    }
-    .chat-bubble.me .chat-to-card-btn, .chat-bubble.me .chat-reaction-bar button { background: rgba(0,0,0,0.14); }
-    .chat-to-card-btn:active, .chat-reaction-bar button:active { transform: scale(1.2); opacity: 1; }
-    .chat-reaction-bar { display: flex; gap: 4px; }
-    .chat-reaction-bar button.active {
-      background: rgba(0,0,0,0.2); opacity: 1;
-      animation: chat-reaction-pop 0.35s var(--ease-spring, ease);
-    }
-    @keyframes chat-reaction-pop {
-      0% { transform: scale(1); }
-      45% { transform: scale(1.3); }
-      100% { transform: scale(1); }
-    }
+    .chat-bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     .msg-reaction-shown {
       position: absolute; bottom: -10px;
       width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
@@ -2560,6 +2662,53 @@ function injectChatStyles() {
     }
     .chat-bubble.me .msg-reaction-shown { left: 12px; }
     .chat-bubble.them .msg-reaction-shown { right: 12px; }
+    .chat-context-menu {
+      position: fixed;
+      z-index: 1000;
+      background: var(--card, #f6efe1);
+      color: var(--on-card, #241c30);
+      border: 1px solid var(--border-card, rgba(36,28,48,0.12));
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.12);
+      padding: 6px;
+      display: flex; flex-direction: column; gap: 2px;
+      min-width: 190px;
+      opacity: 0;
+      transform: scale(0.85);
+      transform-origin: center bottom;
+      transition: opacity 0.16s var(--ease-smooth, ease), transform 0.2s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
+      pointer-events: none;
+    }
+    .chat-context-menu.flipped { transform-origin: center top; }
+    .chat-context-menu.visible { opacity: 1; transform: scale(1); pointer-events: auto; }
+    .chat-context-reactions {
+      display: flex; justify-content: space-around; gap: 2px;
+      padding: 4px 2px 8px; margin-bottom: 4px;
+      border-bottom: 1px solid var(--border-card, rgba(36,28,48,0.1));
+    }
+    .chat-context-reactions button {
+      background: none; border: none; font-size: 25px; cursor: pointer;
+      width: 40px; height: 40px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s var(--ease-spring, ease), background 0.15s ease;
+    }
+    .chat-context-reactions button:active { transform: scale(1.25); }
+    .chat-context-reactions button.active {
+      background: rgba(0,0,0,0.1);
+      animation: chat-reaction-pop 0.35s var(--ease-spring, ease);
+    }
+    @keyframes chat-reaction-pop {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.3); }
+      100% { transform: scale(1); }
+    }
+    .chat-context-card-btn {
+      background: none; border: none; text-align: left; cursor: pointer;
+      font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif); font-size: 14.5px; font-weight: 500;
+      color: inherit; padding: 9px 10px; border-radius: 11px;
+      transition: background 0.15s ease;
+    }
+    .chat-context-card-btn:active { background: rgba(0,0,0,0.08); }
     .voice-message { display: flex; align-items: center; }
     .voice-play-btn {
       background: rgba(0,0,0,0.14); border: none; border-radius: 999px;
@@ -2645,13 +2794,13 @@ function injectChatStyles() {
       .chat-overlay, .chat-panel,
       .chat-overlay.chat-closing, .chat-overlay.chat-closing .chat-panel,
       #chat-messages > .chat-bubble:last-child,
-      .chat-reaction-bar button.active,
+      .chat-context-reactions button.active,
       #chat-typing-indicator.typing-indicator:not(.hidden),
       .voice-message.playing .voice-wave span,
       .chat-voice-btn.recording {
         animation: none !important;
       }
-      .chat-panel { transition: none !important; }
+      .chat-panel, .chat-context-menu { transition: none !important; }
     }
   `;
   document.head.appendChild(style);
@@ -2751,30 +2900,21 @@ async function sealTimeCapsule() {
   }
 }
 
-function renderCapsuleBubbleHTML(msg, isMe, myReact, theirReact) {
+function renderCapsuleBubbleHTML(msg, isMe, theirReact) {
   const isUnlocked = Date.now() >= msg.unlockAt;
   const senderName = isMe ? "You" : (currentRoomData?.players?.[msg.senderId]?.name || "Them");
 
   if (!isUnlocked) {
-    return `<div class="chat-bubble capsule-bubble locked ${isMe ? "me" : "them"}">
+    return `<div class="chat-bubble capsule-bubble locked ${isMe ? "me" : "them"}" data-msg-id="${msg.id}">
       <p class="capsule-label">🔒 Time Capsule from ${escapeHtml(senderName)}</p>
       <p class="capsule-unlock-date">Opens ${formatCapsuleDate(msg.unlockAt)}</p>
     </div>`;
   }
 
-  const reactBtns = !isMe
-    ? `<div class="chat-reaction-bar">
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="❤️" class="${myReact === "❤️" ? "active" : ""}" type="button">❤️</button>
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="🥹" class="${myReact === "🥹" ? "active" : ""}" type="button">🥹</button>
-        <button data-action="react" data-msg-id="${msg.id}" data-emoji="😭" class="${myReact === "😭" ? "active" : ""}" type="button">😭</button>
-      </div>`
-    : "";
-
-  return `<div class="chat-bubble capsule-bubble unlocked ${isMe ? "me" : "them"}">
+  return `<div class="chat-bubble capsule-bubble unlocked ${isMe ? "me" : "them"}" data-msg-id="${msg.id}">
     <p class="capsule-label">📦 Time Capsule — opened</p>
     <p>${escapeHtml(msg.text || "")}</p>
     ${theirReact ? `<span class="msg-reaction-shown">${theirReact}</span>` : ""}
-    ${reactBtns}
   </div>`;
 }
 
