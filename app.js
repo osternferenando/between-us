@@ -162,6 +162,7 @@ function showScreen(name) {
     node.classList.toggle("hidden", key !== name);
   });
   memoryToggleBtn.classList.toggle("hidden", !["game", "end"].includes(name));
+  if (chatToggleBtn) chatToggleBtn.classList.toggle("chat-toggle-docked", name !== "game");
 }
 
 function saveGameState(code, id) {
@@ -2404,8 +2405,15 @@ function injectChatStyles() {
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      transition: top 0.2s var(--ease-smooth, ease), bottom 0.2s var(--ease-smooth, ease);
     }
     .chat-toggle:active { transform: translateY(-50%) scale(0.94); }
+    .chat-toggle.chat-toggle-docked {
+      top: auto !important;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+      transform: none !important;
+    }
+    .chat-toggle.chat-toggle-docked:active { transform: scale(0.94) !important; }
     .chat-badge {
       position: absolute; top: -4px; right: -4px;
       background: #c9425a; color: #fff; border-radius: 999px;
