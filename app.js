@@ -3019,6 +3019,7 @@ function injectCapsuleStyles() {
       border: 1px solid var(--border-card, rgba(36,28,48,0.12));
       font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
       animation: capsule-pop-in 0.32s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
+      overflow: hidden;
     }
     .capsule-overlay.capsule-closing .capsule-modal { animation: capsule-pop-out 0.18s var(--ease-smooth, ease) forwards; }
     @keyframes capsule-pop-in {
@@ -3032,7 +3033,9 @@ function injectCapsuleStyles() {
     .capsule-modal-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 19px; margin: 0 0 6px; }
     .capsule-modal-subtitle { font-size: 13px; color: var(--on-card-soft, #6b5f78); margin: 0 0 16px; line-height: 1.4; }
     #capsule-text-input {
-      width: 100%; border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
+      display: block;
+      width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+      border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
       background: var(--card-2, #fffaf1); color: inherit;
       padding: 11px 13px; font-family: inherit; font-size: 15px; resize: vertical;
       margin-bottom: 14px;
@@ -3040,7 +3043,9 @@ function injectCapsuleStyles() {
     }
     .capsule-date-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--on-card-soft, #6b5f78); margin-bottom: 6px; }
     #capsule-date-input {
-      width: 100%; border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
+      display: block;
+      width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+      border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
       background: var(--card-2, #fffaf1); color: inherit;
       padding: 11px 13px; font-family: inherit; font-size: 15px;
       transition: border-color 0.2s var(--ease-smooth, ease), box-shadow 0.2s var(--ease-smooth, ease);
