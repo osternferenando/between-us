@@ -349,15 +349,29 @@ function isCategoryExplicit(key) {
   return !!(CATEGORY_META[key] && CATEGORY_META[key].explicit);
 }
 
-function buildShuffledQuestions(category, conversationMode) {
+function isCategoryGroupSafe(key) {
+  return !!(CATEGORY_META[key] && CATEGORY_META[key].groupSafe);
+}
+
+function buildShuffledQuestions(category, conversationMode, maxPlayers) {
   if (category === "custompack") {
     return loadedPack ? shuffle(loadedPack.questions) : [];
   }
+  const isGroup = Number(maxPlayers) > 2;
   // "mix" never includes 18+ categories — those require an explicit,
   // deliberate chip selection (gated by the age-confirmation modal below).
-  const pool = category === "mix"
-    ? Object.entries(QUESTIONS).filter(([key]) => !isCategoryExplicit(key)).flatMap(([, list]) => list)
+  // In group rooms, "mix" also only draws from categories tagged group-safe.
+  let pool = category === "mix"
+    ? Object.entries(QUESTIONS)
+        .filter(([key]) => !isCategoryExplicit(key) && (!isGroup || isCategoryGroupSafe(key)))
+        .flatMap(([, list]) => list)
     : QUESTIONS[category];
+  // A few individual questions (e.g. dares that address "the other player")
+  // only make sense with exactly one partner — filtered out for groups
+  // regardless of which category they came from.
+  if (isGroup) {
+    pool = pool.filter((item) => !item.coupleOnly);
+  }
   if (!conversationMode) {
     return shuffle(pool).map((item) => item.text);
   }
@@ -388,8 +402,18 @@ function sortedPlayerIds(data) {
 // ---------- Category chips ----------
 function renderCategoryChips() {
   const order = ["mix", "love", "friendship", "family", "deep", "funny", "party", "firstImpressions", "wouldYouRather", "confessions", "dares", "wyd", "vote", "vibeCheck", "dilemmas", "growth", "intimate", "custompack"];
+  const isGroup = Number(maxPlayersSelect.value) > 2;
+  const visibleOrder = isGroup
+    ? order.filter((key) => key === "mix" || key === "custompack" || isCategoryGroupSafe(key))
+    : order;
+  // If the selected category isn't available at this player count (e.g.
+  // "Love" was picked, then the player count got bumped to 3+), fall back
+  // to Random Mix rather than leaving an invisible category selected.
+  if (!visibleOrder.includes(selectedCategory)) {
+    selectedCategory = "mix";
+  }
   categoryChipsEl.innerHTML = "";
-  order.forEach((key) => {
+  visibleOrder.forEach((key) => {
     const meta = CATEGORY_META[key];
     const chip = document.createElement("button");
     chip.type = "button";
@@ -404,6 +428,7 @@ function renderCategoryChips() {
         packPanelEl.classList.toggle("hidden", key !== "custompack");
         if (key === "vote" && Number(maxPlayersSelect.value) < 3) {
           maxPlayersSelect.value = "3";
+          renderCategoryChips();
         }
       });
     });
@@ -578,7 +603,7 @@ createRoomBtn.addEventListener("click", async () => {
       code = await generateUniqueRoomCode();
     }
 
-    let questions = buildShuffledQuestions(selectedCategory, conversationMode);
+    let questions = buildShuffledQuestions(selectedCategory, conversationMode, maxPlayers);
 
 if (!questions.length) {
   toast("That pack has no questions — try another.");
@@ -1222,7 +1247,8 @@ nextBtn.addEventListener("click", async () => {
 // ---------- Play again ----------
 playAgainBtn.addEventListener("click", async () => {
   if (!currentRoomData) return;
-  const newQuestions = buildShuffledQuestions(currentRoomData.category, currentRoomData.conversationMode);
+  const roomPlayerCount = Object.keys(currentRoomData.players || {}).length;
+  const newQuestions = buildShuffledQuestions(currentRoomData.category, currentRoomData.conversationMode, roomPlayerCount);
   lastAnimatedIndex = -1;
   lastRevealedIndex = -1;
   celebratedIndex = -1;
@@ -1268,6 +1294,7 @@ soundToggleBtn.addEventListener("click", () => {
 // ---------- Init ----------
 async function init() {
   renderCategoryChips();
+  maxPlayersSelect.addEventListener("change", renderCategoryChips);
   ensureDeckBuilderButton();
   
   // Try to restore active game first (if user refreshed mid-game)
