@@ -11,26 +11,26 @@ export const CATEGORY_META = {
   mix: { emoji: "🎲", label: "Random Mix", color: "#c9a15a" },
   love: { emoji: "❤️", label: "Love", color: "#9c3348" },
   friendship: { emoji: "😊", label: "Friendship", color: "#2f6f65" },
-  family: { emoji: "👨‍👩‍👧", label: "Family", color: "#a1653d" },
-  deep: { emoji: "🔥", label: "Deep", color: "#3d3a75" },
-  funny: { emoji: "😂", label: "Funny", color: "#b8862e" },
-  party: { emoji: "🎉", label: "Party", color: "#c2437a" },
+  family: { emoji: "👨‍👩‍👧", label: "Family", color: "#a1653d", groupSafe: true },
+  deep: { emoji: "🔥", label: "Deep", color: "#3d3a75", groupSafe: true },
+  funny: { emoji: "😂", label: "Funny", color: "#b8862e", groupSafe: true },
+  party: { emoji: "🎉", label: "Party", color: "#c2437a", groupSafe: true },
   firstImpressions: { emoji: "🎯", label: "First Impressions", color: "#4a6fa5" },
-  wouldYouRather: { emoji: "🧠", label: "Would You Rather", color: "#3c6b3f" },
-  confessions: { emoji: "💭", label: "Confessions", color: "#6b3d6b" },
-  dares: { emoji: "😈", label: "Dares", color: "#a1452a" },
-  wyd: { emoji: "🤔", label: "What Would You Do", color: "#45566b" },
-  vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba" },
+  wouldYouRather: { emoji: "🧠", label: "Would You Rather", color: "#3c6b3f", groupSafe: true },
+  confessions: { emoji: "💭", label: "Confessions", color: "#6b3d6b", groupSafe: true },
+  dares: { emoji: "😈", label: "Dares", color: "#a1452a", groupSafe: true },
+  wyd: { emoji: "🤔", label: "What Would You Do", color: "#45566b", groupSafe: true },
+  vote: { emoji: "🗳️", label: "Vote Prompts", color: "#7a4fba", groupSafe: true },
   custompack: { emoji: "📦", label: "Custom Pack", color: "#5b6b8c", explicit: true },
 
   vibeCheck: { emoji: "⚡", label: "Vibe Check", color: "#e056fd", explicit: true },
   dilemmas: { emoji: "🚨", label: "Hard Dilemmas", color: "#eb4d4b" },
-  growth: { emoji: "🌱", label: "Deep Growth", color: "#2ecc71" },
+  growth: { emoji: "🌱", label: "Deep Growth", color: "#2ecc71", groupSafe: true },
   intimate: { emoji: "💘", label: "Intimacy", color: "#f39c12", explicit: true },
 };
 
-function q(text, level) {
-  return { text, level };
+function q(text, level, opts) {
+  return opts ? { text, level, ...opts } : { text, level };
 }
 
 // ===================================================================
@@ -200,19 +200,19 @@ export const QUESTIONS = {
 
   dares: [
     q("Send the last photo in your camera roll, no explanation.", 2),
-    q("Do your best impression of the other player right now.", 1),
+    q("Do your best impression of the other player right now.", 1, { coupleOnly: true }),
     q("Text a random contact \"I have something important to tell you,\" then leave them hanging.", 1),
     q("Speak in an accent of your choice for the next two questions.", 1),
     q("Show your most-used emoji and explain why it's your go-to.", 1),
     q("Do 10 jumping jacks before answering the next question.", 1),
-    q("Let the other player post one word as your status for the next hour.", 1),
+    q("Let the other player post one word as your status for the next hour.", 1, { coupleOnly: true }),
     q("Sing the chorus of the last song you listened to.", 1),
     q("Show the last thing you searched on your phone, if it's not private.", 1),
     q("Do your best dance move for 10 seconds.", 1),
-    q("Let the other player scroll your camera roll for 10 seconds.", 2),
+    q("Let the other player scroll your camera roll for 10 seconds.", 2, { coupleOnly: true }),
     q("Talk in slow motion for your next answer.", 1),
     q("Attempt to lick your elbow. Yes, really.", 1),
-    q("Give the other player a genuine compliment, out loud, right now.", 1),
+    q("Give the other player a genuine compliment, out loud, right now.", 1, { coupleOnly: true }),
   ],
 
   wyd: [
