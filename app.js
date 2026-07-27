@@ -757,6 +757,7 @@ function listenToRoom(code) {
 
 function render(data) {
   updateChatTypingIndicator(data);
+  updateChatOnlineStatus(data);
   const playerIds = sortedPlayerIds(data);
   if (playerIds.length < 2 || !data.started) {
     showScreen("waiting");
@@ -1960,7 +1961,7 @@ function ensureChatUI() {
       <div class="chat-header">
         <div class="chat-header-identity">
           <span class="chat-header-title">Between Us</span>
-          <span class="chat-header-subtitle">Our little corner</span>
+          <span id="chat-header-subtitle" class="chat-header-subtitle">Our little corner</span>
         </div>
         <div class="chat-header-actions">
           <button type="button" id="capsule-open-btn" class="chat-header-icon-btn" aria-label="Seal a time capsule">🔒</button>
@@ -2107,7 +2108,23 @@ function openChatOverlay() {
   chatOverlayEl.classList.remove("hidden", "chat-closing");
   syncChatOverlayViewport();
   renderChatMessages();
+  if (currentRoomData) updateChatOnlineStatus(currentRoomData);
   chatInputEl.focus();
+}
+
+function updateChatOnlineStatus(data) {
+  const subtitleEl = document.getElementById("chat-header-subtitle");
+  if (!subtitleEl || !data?.players) return;
+  const ids = Object.keys(data.players);
+  if (ids.length <= 2) {
+    subtitleEl.textContent = "Our little corner";
+    return;
+  }
+  const onlineCount = ids.filter((id) => {
+    const presence = presenceData[id];
+    return !presence || presence.online !== false;
+  }).length;
+  subtitleEl.textContent = `${onlineCount} of ${ids.length} online`;
 }
 
 function closeChatOverlay() {
@@ -2206,6 +2223,11 @@ function renderChatMessageHTML(msg, group) {
     return renderCapsuleBubbleHTML(msg, isMe, shownReact);
   }
 
+  const totalPlayers = currentRoomData?.players ? Object.keys(currentRoomData.players).length : 0;
+  const senderLabel = (!isMe && groupStart && totalPlayers > 2)
+    ? `<span class="bubble-label chat-sender-label">${escapeHtml(currentRoomData?.players?.[msg.senderId]?.name || "Someone")}</span>`
+    : "";
+
   let bodyHTML;
   if (msg.type === "voice") {
     bodyHTML = `
@@ -2228,6 +2250,7 @@ function renderChatMessageHTML(msg, group) {
   ].filter(Boolean).join(" ");
 
   return `<div class="${bubbleClasses}" data-msg-id="${msg.id}">
+    ${senderLabel}
     ${bodyHTML}
     ${shownReact ? `<span class="msg-reaction-shown">${shownReact}</span>` : ""}
   </div>`;
@@ -2655,6 +2678,7 @@ function injectChatStyles() {
     }
     .chat-bubble.them.group-end { border-bottom-left-radius: 6px; }
     .chat-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .chat-bubble .chat-sender-label { display: block; margin-bottom: 3px; }
     .chat-bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     .msg-reaction-shown {
       position: absolute; bottom: -10px;
