@@ -3170,6 +3170,8 @@ function ensureRecentRoomsUI() {
   modeButtonsEl.insertAdjacentElement("beforebegin", section);
 }
 
+const RECENT_ROOMS_DISPLAY_LIMIT = 3;
+
 async function renderRecentRoomsSection() {
   if (!db) return;
   const recents = getRecentRooms();
@@ -3179,10 +3181,13 @@ async function renderRecentRoomsSection() {
   const listEl = document.getElementById("recent-rooms-list");
   if (!listEl) return;
 
+  const extraCount = recents.length - RECENT_ROOMS_DISPLAY_LIMIT;
+
   listEl.innerHTML = recents
-    .map((r) => {
+    .map((r, i) => {
       const meta = CATEGORY_META[r.category] || CATEGORY_META.mix;
-      return `<button type="button" class="recent-room-row" data-code="${escapeHtml(r.code)}">
+      const extraClass = i >= RECENT_ROOMS_DISPLAY_LIMIT ? " recent-room-row-extra hidden" : "";
+      return `<button type="button" class="recent-room-row${extraClass}" data-code="${escapeHtml(r.code)}">
         <span class="recent-room-main">
           <span class="recent-room-code">${escapeHtml(r.code)}</span>
           <span class="recent-room-category">${meta.emoji} ${escapeHtml(meta.label)}</span>
@@ -3192,9 +3197,26 @@ async function renderRecentRoomsSection() {
     })
     .join("");
 
+  if (extraCount > 0) {
+    listEl.insertAdjacentHTML(
+      "beforeend",
+      `<button type="button" id="recent-rooms-toggle" class="recent-rooms-toggle">Show ${extraCount} more ▾</button>`
+    );
+  }
+
   listEl.querySelectorAll(".recent-room-row").forEach((row) => {
     row.addEventListener("click", () => rejoinRecentRoom(row.dataset.code));
   });
+
+  const toggleBtn = document.getElementById("recent-rooms-toggle");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      const extras = listEl.querySelectorAll(".recent-room-row-extra");
+      const expanding = extras[0]?.classList.contains("hidden");
+      extras.forEach((row) => row.classList.toggle("hidden", !expanding));
+      toggleBtn.textContent = expanding ? "Show less ▴" : `Show ${extraCount} more ▾`;
+    });
+  }
 
   recents.forEach((r) => fetchCapsuleStatusForRoom(r.code));
 }
@@ -3267,6 +3289,15 @@ function injectRecentRoomsStyles() {
     .recent-room-category { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); }
     .recent-room-status { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); text-align: right; white-space: nowrap; margin-left: 10px; }
     .recent-room-status.has-capsule { color: var(--garnet, #9c3348); font-weight: 600; }
+    .recent-room-row-extra.hidden { display: none; }
+    .recent-rooms-toggle {
+      background: none; border: none; width: 100%; text-align: center;
+      padding: 6px 4px 2px; margin-top: 2px;
+      font-family: var(--font-ui, inherit); font-size: 0.8rem; font-weight: 500;
+      color: var(--on-card-soft, #6b5f78); text-decoration: underline; text-underline-offset: 2px;
+      cursor: pointer; transition: opacity 0.2s ease;
+    }
+    .recent-rooms-toggle:active { opacity: 0.6; }
   `;
   document.head.appendChild(style);
 }
