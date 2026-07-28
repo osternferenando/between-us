@@ -137,6 +137,7 @@ let isTypingFlagged = false;
 let loadedPack = null; 
 let presenceData = {};
 let stallCount = 0; // Tracks how often they dodge questions
+let briefNudgeStreak = 0; // Tracks THIS player's own brief-answer streak, for the private nudge
 let journalGenerationInFlight = false; // prevents duplicate journal calls from rapid snapshot updates
 
 
@@ -151,11 +152,6 @@ const QUOTES = [
   "Worth remembering — that one's going in the Memory Book.",
   "Some of the best conversations start with a random question.",
   "You just learned something you didn't know this morning.",
-];
-const SKIP_QUOTES = [
-  "No worries — not every question has to land. Next one's up.",
-  "A pass is fine too. Onward.",
-  "Some questions just aren't the right fit, and that's okay.",
 ];
 
 let soundEnabled = localStorage.getItem("bu_sound") !== "off";
@@ -354,29 +350,15 @@ function isCategoryExplicit(key) {
   return !!(CATEGORY_META[key] && CATEGORY_META[key].explicit);
 }
 
-function isCategoryGroupSafe(key) {
-  return !!(CATEGORY_META[key] && CATEGORY_META[key].groupSafe);
-}
-
-function buildShuffledQuestions(category, conversationMode, maxPlayers) {
+function buildShuffledQuestions(category, conversationMode) {
   if (category === "custompack") {
     return loadedPack ? shuffle(loadedPack.questions) : [];
   }
-  const isGroup = Number(maxPlayers) > 2;
   // "mix" never includes 18+ categories — those require an explicit,
   // deliberate chip selection (gated by the age-confirmation modal below).
-  // In group rooms, "mix" also only draws from categories tagged group-safe.
-  let pool = category === "mix"
-    ? Object.entries(QUESTIONS)
-        .filter(([key]) => !isCategoryExplicit(key) && (!isGroup || isCategoryGroupSafe(key)))
-        .flatMap(([, list]) => list)
+  const pool = category === "mix"
+    ? Object.entries(QUESTIONS).filter(([key]) => !isCategoryExplicit(key)).flatMap(([, list]) => list)
     : QUESTIONS[category];
-  // A few individual questions (e.g. dares that address "the other player")
-  // only make sense with exactly one partner — filtered out for groups
-  // regardless of which category they came from.
-  if (isGroup) {
-    pool = pool.filter((item) => !item.coupleOnly);
-  }
   if (!conversationMode) {
     return shuffle(pool).map((item) => item.text);
   }
@@ -407,18 +389,8 @@ function sortedPlayerIds(data) {
 // ---------- Category chips ----------
 function renderCategoryChips() {
   const order = ["mix", "love", "friendship", "family", "deep", "funny", "party", "firstImpressions", "wouldYouRather", "confessions", "dares", "wyd", "vote", "vibeCheck", "dilemmas", "growth", "intimate", "custompack"];
-  const isGroup = Number(maxPlayersSelect.value) > 2;
-  const visibleOrder = isGroup
-    ? order.filter((key) => key === "mix" || key === "custompack" || isCategoryGroupSafe(key))
-    : order;
-  // If the selected category isn't available at this player count (e.g.
-  // "Love" was picked, then the player count got bumped to 3+), fall back
-  // to Random Mix rather than leaving an invisible category selected.
-  if (!visibleOrder.includes(selectedCategory)) {
-    selectedCategory = "mix";
-  }
   categoryChipsEl.innerHTML = "";
-  visibleOrder.forEach((key) => {
+  order.forEach((key) => {
     const meta = CATEGORY_META[key];
     const chip = document.createElement("button");
     chip.type = "button";
@@ -433,7 +405,6 @@ function renderCategoryChips() {
         packPanelEl.classList.toggle("hidden", key !== "custompack");
         if (key === "vote" && Number(maxPlayersSelect.value) < 3) {
           maxPlayersSelect.value = "3";
-          renderCategoryChips();
         }
       });
     });
@@ -608,7 +579,7 @@ createRoomBtn.addEventListener("click", async () => {
       code = await generateUniqueRoomCode();
     }
 
-    let questions = buildShuffledQuestions(selectedCategory, conversationMode, maxPlayers);
+    let questions = buildShuffledQuestions(selectedCategory, conversationMode);
 
 if (!questions.length) {
   toast("That pack has no questions — try another.");
@@ -947,6 +918,31 @@ if (allAnswered && isStalling) {
     stallCount = 0; // They are engaging well, reset the counter
 }
 
+// Private nudge — only shown on THIS player's own screen, never synced
+// anywhere, never visible to the other player. Catches the asymmetric
+// case (one person brief, the other genuinely engaged) that the shared
+// mediator deliberately does NOT trigger on, so it never becomes a
+// shared "gotcha" moment. Each client independently checks its own
+// player's answer, so nothing about this is transmitted or shared.
+if (allAnswered) {
+  const myAnswer = answersForQ[playerId];
+  const iWasBrief = myAnswer === SKIPPED || (typeof myAnswer === "string" && myAnswer.trim().length < 8);
+  const othersEngaged = othersIds.some((id) => {
+    const a = answersForQ[id];
+    return a !== SKIPPED && typeof a === "string" && a.trim().length >= 25;
+  });
+  if (iWasBrief && othersEngaged) {
+    briefNudgeStreak++;
+    if (briefNudgeStreak >= 2) {
+      const partnerName = othersIds.length ? data.players[othersIds[0]].name : "they";
+      toast(`${partnerName} is really opening up — maybe give a little more next round 💭`);
+      briefNudgeStreak = 0;
+    }
+  } else {
+    briefNudgeStreak = 0;
+  }
+}
+
   if (allAnswered) {
     const reactionsForQ = (data.reactions && data.reactions[idx]) || {};
 
@@ -978,9 +974,7 @@ if (allAnswered && isStalling) {
     if (idx !== lastRevealedIndex) {
       lastRevealedIndex = idx;
       playRevealSound();
-      const allSkipped = sortedIds.every((id) => answersForQ[id] === SKIPPED);
-      const quotePool = allSkipped ? SKIP_QUOTES : QUOTES;
-      revealQuoteEl.textContent = quotePool[Math.floor(Math.random() * quotePool.length)];
+      revealQuoteEl.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
     }
 
     if (idx !== celebratedIndex && MILESTONES.includes(idx + 1)) {
@@ -1072,8 +1066,7 @@ function renderVoteGame(data, sortedIds) {
     if (idx !== lastRevealedIndex) {
       lastRevealedIndex = idx;
       playRevealSound();
-      const quotePool = maxVotes === 0 ? SKIP_QUOTES : QUOTES;
-      revealQuoteEl.textContent = quotePool[Math.floor(Math.random() * quotePool.length)];
+      revealQuoteEl.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
     }
     if (idx !== celebratedIndex && MILESTONES.includes(idx + 1)) {
       celebratedIndex = idx;
@@ -1255,8 +1248,7 @@ nextBtn.addEventListener("click", async () => {
 // ---------- Play again ----------
 playAgainBtn.addEventListener("click", async () => {
   if (!currentRoomData) return;
-  const roomPlayerCount = Object.keys(currentRoomData.players || {}).length;
-  const newQuestions = buildShuffledQuestions(currentRoomData.category, currentRoomData.conversationMode, roomPlayerCount);
+  const newQuestions = buildShuffledQuestions(currentRoomData.category, currentRoomData.conversationMode);
   lastAnimatedIndex = -1;
   lastRevealedIndex = -1;
   celebratedIndex = -1;
@@ -1302,7 +1294,6 @@ soundToggleBtn.addEventListener("click", () => {
 // ---------- Init ----------
 async function init() {
   renderCategoryChips();
-  maxPlayersSelect.addEventListener("change", renderCategoryChips);
   ensureDeckBuilderButton();
   
   // Try to restore active game first (if user refreshed mid-game)
@@ -2832,718 +2823,4 @@ function injectChatStyles() {
       50% { opacity: 1; }
     }
     .chat-send-btn, .chat-voice-btn {
-      border: none; border-radius: 999px; width: 40px; height: 40px; flex-shrink: 0;
-      font-size: 16px; cursor: pointer; background: var(--gold, #c9a15a); color: #241f14;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform 0.18s var(--ease-spring, ease), opacity 0.18s ease, background 0.18s ease;
-    }
-    .chat-send-btn:active, .chat-voice-btn:active { transform: scale(0.9); }
-    .chat-send-btn:disabled { opacity: 0.35; cursor: default; }
-    .chat-send-btn:disabled:active { transform: none; }
-    .chat-voice-btn { background: rgba(0,0,0,0.08); color: inherit; touch-action: none; user-select: none; }
-    .chat-voice-btn.recording { background: #c9425a; color: #fff; animation: chat-pulse 1s infinite; }
-    @keyframes chat-pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.08); }
-    }
-    #chat-messages > .chat-bubble:last-child {
-      animation: chat-bubble-in 0.28s var(--ease-out, ease-out);
-    }
-    @keyframes chat-bubble-in {
-      from { opacity: 0; transform: translateY(8px) scale(0.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .chat-overlay, .chat-panel,
-      .chat-overlay.chat-closing, .chat-overlay.chat-closing .chat-panel,
-      #chat-messages > .chat-bubble:last-child,
-      .chat-context-reactions button.active,
-      #chat-typing-indicator.typing-indicator:not(.hidden),
-      .voice-message.playing .voice-wave span,
-      .chat-voice-btn.recording {
-        animation: none !important;
-      }
-      .chat-panel, .chat-context-menu { transition: none !important; }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-// ====== Time Capsule — seal a message, unlocks on a future date ======
-// Lives as a special message type inside the same messages subcollection,
-// so it appears right in the chat timeline, sorted by when it was sealed —
-// just locked until msg.unlockAt passes.
-
-let capsuleOverlayEl = null;
-let celebratedCapsules = new Set();
-let capsuleWatcherInterval = null;
-
-function ensureCapsuleUI() {
-  if (capsuleOverlayEl) return;
-  capsuleOverlayEl = document.createElement("div");
-  capsuleOverlayEl.id = "capsule-overlay";
-  capsuleOverlayEl.className = "capsule-overlay hidden";
-  capsuleOverlayEl.innerHTML = `
-    <div class="capsule-modal">
-      <p class="capsule-modal-title">🔒 Seal a Time Capsule</p>
-      <p class="capsule-modal-subtitle">Write something for later — it stays sealed until the date you pick.</p>
-      <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future..."></textarea>
-      <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label>
-      <input type="datetime-local" id="capsule-date-input">
-      <div class="capsule-modal-actions">
-        <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button>
-        <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(capsuleOverlayEl);
-
-  document.getElementById("capsule-cancel-btn").addEventListener("click", closeCapsuleComposer);
-  document.getElementById("capsule-seal-btn").addEventListener("click", sealTimeCapsule);
-  capsuleOverlayEl.addEventListener("click", (e) => {
-    if (e.target === capsuleOverlayEl) closeCapsuleComposer();
-  });
-}
-
-function openCapsuleComposer() {
-  ensureCapsuleUI();
-  const dateInput = document.getElementById("capsule-date-input");
-  dateInput.min = new Date(Date.now() + 60000).toISOString().slice(0, 16);
-  document.getElementById("capsule-text-input").value = "";
-  dateInput.value = "";
-  capsuleOverlayEl.classList.remove("hidden", "capsule-closing");
-}
-
-function closeCapsuleComposer() {
-  if (!capsuleOverlayEl || capsuleOverlayEl.classList.contains("hidden")) return;
-  const modal = capsuleOverlayEl.querySelector(".capsule-modal");
-  const finishClose = () => {
-    capsuleOverlayEl.classList.add("hidden");
-    capsuleOverlayEl.classList.remove("capsule-closing");
-  };
-  capsuleOverlayEl.classList.add("capsule-closing");
-  if (modal) {
-    modal.addEventListener("animationend", finishClose, { once: true });
-    setTimeout(finishClose, 250); // fallback if the animation is skipped (e.g. reduced motion)
-  } else {
-    finishClose();
-  }
-}
-
-async function sealTimeCapsule() {
-  const text = document.getElementById("capsule-text-input").value.trim();
-  const dateVal = document.getElementById("capsule-date-input").value;
-
-  if (!text) {
-    toast("Write something for the capsule first.");
-    return;
-  }
-  if (!dateVal) {
-    toast("Pick an unlock date.");
-    return;
-  }
-  const unlockAt = new Date(dateVal).getTime();
-  if (isNaN(unlockAt) || unlockAt <= Date.now()) {
-    toast("Pick a date in the future.");
-    return;
-  }
-  if (!roomId || !db) return;
-
-  const sealBtn = document.getElementById("capsule-seal-btn");
-  sealBtn.disabled = true;
-  sealBtn.textContent = "Sealing...";
-  try {
-    await addDoc(collection(db, "rooms", roomId, "messages"), {
-      senderId: playerId,
-      type: "capsule",
-      text,
-      unlockAt,
-      createdAt: serverTimestamp(),
-    });
-    closeCapsuleComposer();
-    toast("Sealed 🔒 — it'll unlock on the date you picked.");
-  } catch (err) {
-    console.error(err);
-    if (err.code === "permission-denied") {
-      toast("Blocked by Firestore rules — same messages subcollection as chat.");
-    } else {
-      toast("Couldn't seal that capsule — try again.");
-    }
-  } finally {
-    sealBtn.disabled = false;
-    sealBtn.textContent = "Seal it 🔒";
-  }
-}
-
-function renderCapsuleBubbleHTML(msg, isMe, shownReact) {
-  const isUnlocked = Date.now() >= msg.unlockAt;
-  const senderName = isMe ? "You" : (currentRoomData?.players?.[msg.senderId]?.name || "Them");
-
-  if (!isUnlocked) {
-    return `<div class="chat-bubble capsule-bubble locked ${isMe ? "me" : "them"}" data-msg-id="${msg.id}">
-      <p class="capsule-label">🔒 Time Capsule from ${escapeHtml(senderName)}</p>
-      <p class="capsule-unlock-date">Opens ${formatCapsuleDate(msg.unlockAt)}</p>
-    </div>`;
-  }
-
-  return `<div class="chat-bubble capsule-bubble unlocked ${isMe ? "me" : "them"}" data-msg-id="${msg.id}">
-    <p class="capsule-label">📦 Time Capsule — opened</p>
-    <p>${escapeHtml(msg.text || "")}</p>
-    ${shownReact ? `<span class="msg-reaction-shown">${shownReact}</span>` : ""}
-  </div>`;
-}
-
-function formatCapsuleDate(ms) {
-  const d = new Date(ms);
-  const dateStr = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-  const daysAway = Math.ceil((ms - Date.now()) / 86400000);
-  if (daysAway <= 0) return dateStr;
-  if (daysAway === 1) return `${dateStr} (tomorrow)`;
-  if (daysAway <= 60) return `${dateStr} (in ${daysAway} days)`;
-  return dateStr;
-}
-
-// Re-checks lock state over time (not just on new Firestore writes) so a
-// capsule visibly unlocks the moment its date passes while chat is open,
-// and celebrates ones that unlocked recently rather than stale old ones.
-function checkCapsuleUnlocks() {
-  const now = Date.now();
-  let justUnlockedAny = false;
-  chatMessages.forEach((msg) => {
-    if (msg.type !== "capsule") return;
-    const recentlyUnlocked = msg.unlockAt <= now && now - msg.unlockAt < 120000;
-    if (recentlyUnlocked && !celebratedCapsules.has(msg.id)) {
-      celebratedCapsules.add(msg.id);
-      justUnlockedAny = true;
-    }
-  });
-  if (justUnlockedAny) {
-    fireConfetti();
-    toast("📦 A time capsule just opened!");
-  }
-}
-
-function startCapsuleWatcher() {
-  if (capsuleWatcherInterval) return;
-  capsuleWatcherInterval = setInterval(() => {
-    checkCapsuleUnlocks();
-    if (chatOverlayOpen) renderChatMessages();
-  }, 20000);
-}
-
-function injectCapsuleStyles() {
-  if (document.getElementById("capsule-styles")) return;
-  const style = document.createElement("style");
-  style.id = "capsule-styles";
-  style.textContent = `
-    .capsule-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.5);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1050;
-      padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
-      backdrop-filter: blur(9px) saturate(140%);
-      -webkit-backdrop-filter: blur(9px) saturate(140%);
-      animation: chat-backdrop-in 0.25s var(--ease-smooth, ease);
-    }
-    .capsule-overlay.capsule-closing { animation: chat-backdrop-out 0.2s var(--ease-smooth, ease) forwards; }
-    .capsule-modal {
-      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
-      border-radius: var(--radius-lg, 22px); max-width: 420px; width: 100%;
-      padding: var(--space-6, 26px) var(--space-5, 22px);
-      box-shadow: var(--shadow-card-lg, 0 20px 60px rgba(0,0,0,0.4));
-      border: 1px solid var(--border-card, rgba(36,28,48,0.12));
-      font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
-      animation: capsule-pop-in 0.32s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
-      overflow: hidden;
-    }
-    .capsule-overlay.capsule-closing .capsule-modal { animation: capsule-pop-out 0.18s var(--ease-smooth, ease) forwards; }
-    @keyframes capsule-pop-in {
-      from { transform: scale(0.9); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
-    @keyframes capsule-pop-out {
-      from { transform: scale(1); opacity: 1; }
-      to { transform: scale(0.95); opacity: 0; }
-    }
-    .capsule-modal-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 19px; margin: 0 0 6px; }
-    .capsule-modal-subtitle { font-size: 13px; color: var(--on-card-soft, #6b5f78); margin: 0 0 16px; line-height: 1.4; }
-    #capsule-text-input {
-      display: block;
-      width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
-      border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
-      background: var(--card-2, #fffaf1); color: inherit;
-      padding: 11px 13px; font-family: inherit; font-size: 15px; resize: vertical;
-      margin-bottom: 14px;
-      transition: border-color 0.2s var(--ease-smooth, ease), box-shadow 0.2s var(--ease-smooth, ease);
-    }
-    .capsule-date-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--on-card-soft, #6b5f78); margin-bottom: 6px; }
-    #capsule-date-input {
-      display: block;
-      width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
-      border-radius: var(--radius-sm, 12px); border: 1.5px solid var(--border-card, rgba(36,28,48,0.13));
-      background: var(--card-2, #fffaf1); color: inherit;
-      padding: 11px 13px; font-family: inherit; font-size: 15px;
-      transition: border-color 0.2s var(--ease-smooth, ease), box-shadow 0.2s var(--ease-smooth, ease);
-    }
-    #capsule-text-input:focus, #capsule-date-input:focus {
-      outline: none;
-      border-color: var(--garnet, #8a2f3f);
-      box-shadow: 0 0 0 4px var(--garnet-soft, rgba(138,47,63,0.15));
-    }
-    .capsule-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
-    .capsule-btn {
-      flex: 1; padding: 12px; border-radius: var(--radius-sm, 12px); border: none;
-      font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem;
-      transition: transform 0.15s var(--ease-spring, ease), background 0.15s ease;
-    }
-    .capsule-btn:active { transform: scale(0.96); }
-    .capsule-btn.cancel { background: var(--card-2, rgba(0,0,0,0.08)); color: inherit; border: 1.5px solid var(--border-card, rgba(36,28,48,0.13)); }
-    .capsule-btn.seal { background: var(--gold, #c9a15a); color: #241c30; }
-
-    .chat-bubble.capsule-bubble {
-      align-self: center;
-      border: 1.5px dashed var(--gold, #c9a15a);
-      background: var(--gold-soft, rgba(201,161,90,0.16));
-      max-width: 88%;
-    }
-    .capsule-bubble.locked { text-align: center; }
-    .capsule-label { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; letter-spacing: 0.03em; opacity: 0.8; }
-    .capsule-unlock-date { margin: 4px 0 0; font-size: 0.85rem; font-weight: 600; }
-    .capsule-bubble.unlocked {
-      border-style: solid;
-      box-shadow: 0 0 0 1px var(--gold-soft, rgba(201,161,90,0.16)), 0 4px 14px rgba(0,0,0,0.08);
-    }
-    .capsule-bubble.unlocked p:not(.capsule-label) { margin: 6px 0 0; font-family: 'Fraunces', serif; font-style: italic; }
-    @media (prefers-reduced-motion: reduce) {
-      .capsule-overlay, .capsule-modal,
-      .capsule-overlay.capsule-closing, .capsule-overlay.capsule-closing .capsule-modal {
-        animation: none !important;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-// ====== Recent Rooms — the actual fix for "my capsule disappeared" ======
-// Nothing in Firestore was ever deleted — the real problem was that once
-// you left a room, the browser had no memory of the code to get back in.
-// This keeps a small local list of rooms you've been in, with a live
-// capsule-status check, so getting back is one tap instead of "hope you
-// wrote the code down somewhere."
-
-const RECENT_ROOMS_KEY = "bu_recentRooms";
-const MAX_RECENT_ROOMS = 8;
-
-function saveRecentRoom(code, category) {
-  try {
-    let recents = JSON.parse(localStorage.getItem(RECENT_ROOMS_KEY) || "[]");
-    recents = recents.filter((r) => r.code !== code);
-    recents.unshift({ code, category: category || "mix", lastVisited: Date.now() });
-    recents = recents.slice(0, MAX_RECENT_ROOMS);
-    localStorage.setItem(RECENT_ROOMS_KEY, JSON.stringify(recents));
-  } catch (err) {
-    console.error("Couldn't save recent room:", err);
-  }
-}
-
-function getRecentRooms() {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_ROOMS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function ensureRecentRoomsUI() {
-  if (document.getElementById("recent-rooms-section")) return;
-  const modeButtonsEl = document.getElementById("mode-buttons");
-  if (!modeButtonsEl) return;
-  injectRecentRoomsStyles();
-
-  const section = document.createElement("div");
-  section.id = "recent-rooms-section";
-  section.className = "recent-rooms-section";
-  section.innerHTML = `
-    <p class="recent-rooms-label">↩ Your recent rooms</p>
-    <div id="recent-rooms-list" class="recent-rooms-list"></div>
-  `;
-  modeButtonsEl.insertAdjacentElement("beforebegin", section);
-}
-
-const RECENT_ROOMS_DISPLAY_LIMIT = 3;
-
-async function renderRecentRoomsSection() {
-  if (!db) return;
-  const recents = getRecentRooms();
-  if (!recents.length) return;
-
-  ensureRecentRoomsUI();
-  const listEl = document.getElementById("recent-rooms-list");
-  if (!listEl) return;
-
-  const extraCount = recents.length - RECENT_ROOMS_DISPLAY_LIMIT;
-
-  listEl.innerHTML = recents
-    .map((r, i) => {
-      const meta = CATEGORY_META[r.category] || CATEGORY_META.mix;
-      const extraClass = i >= RECENT_ROOMS_DISPLAY_LIMIT ? " recent-room-row-extra hidden" : "";
-      return `<button type="button" class="recent-room-row${extraClass}" data-code="${escapeHtml(r.code)}">
-        <span class="recent-room-main">
-          <span class="recent-room-code">${escapeHtml(r.code)}</span>
-          <span class="recent-room-category">${meta.emoji} ${escapeHtml(meta.label)}</span>
-        </span>
-        <span class="recent-room-status" id="recent-status-${escapeHtml(r.code)}">···</span>
-      </button>`;
-    })
-    .join("");
-
-  if (extraCount > 0) {
-    listEl.insertAdjacentHTML(
-      "beforeend",
-      `<button type="button" id="recent-rooms-toggle" class="recent-rooms-toggle">Show ${extraCount} more ▾</button>`
-    );
-  }
-
-  listEl.querySelectorAll(".recent-room-row").forEach((row) => {
-    row.addEventListener("click", () => rejoinRecentRoom(row.dataset.code));
-  });
-
-  const toggleBtn = document.getElementById("recent-rooms-toggle");
-  if (toggleBtn) {
-    toggleBtn.addEventListener("click", () => {
-      const extras = listEl.querySelectorAll(".recent-room-row-extra");
-      const expanding = extras[0]?.classList.contains("hidden");
-      extras.forEach((row) => row.classList.toggle("hidden", !expanding));
-      toggleBtn.textContent = expanding ? "Show less ▴" : `Show ${extraCount} more ▾`;
-    });
-  }
-
-  recents.forEach((r) => fetchCapsuleStatusForRoom(r.code));
-}
-
-async function fetchCapsuleStatusForRoom(code) {
-  const statusEl = document.getElementById(`recent-status-${code}`);
-  if (!statusEl) return;
-  try {
-    const capsulesQuery = query(collection(db, "rooms", code, "messages"), where("type", "==", "capsule"));
-    const snap = await getDocs(capsulesQuery);
-    const now = Date.now();
-    let lockedCount = 0;
-    let nextUnlock = null;
-    snap.forEach((d) => {
-      const data = d.data();
-      if (data.unlockAt > now) {
-        lockedCount++;
-        if (nextUnlock === null || data.unlockAt < nextUnlock) nextUnlock = data.unlockAt;
-      }
-    });
-    if (lockedCount > 0) {
-      statusEl.textContent = `🔒 ${lockedCount} sealed — opens ${formatCapsuleDate(nextUnlock)}`;
-      statusEl.classList.add("has-capsule");
-    } else {
-      statusEl.textContent = "Tap to reopen";
-      statusEl.classList.remove("has-capsule");
-    }
-  } catch (err) {
-    console.error("Couldn't check capsules for room", code, err);
-    statusEl.textContent = "Tap to reopen";
-  }
-}
-
-async function rejoinRecentRoom(code) {
-  if (!requireName()) return;
-  const row = document.querySelector(`.recent-room-row[data-code="${code}"]`);
-  if (row) row.disabled = true;
-  try {
-    const ok = await attemptJoinRoom(code);
-    if (!ok && row) row.disabled = false;
-  } catch (err) {
-    console.error(err);
-    toast("Couldn't reconnect — try again.");
-    if (row) row.disabled = false;
-  }
-}
-
-function injectRecentRoomsStyles() {
-  if (document.getElementById("recent-rooms-styles")) return;
-  const style = document.createElement("style");
-  style.id = "recent-rooms-styles";
-  style.textContent = `
-    .recent-rooms-section { margin-bottom: 18px; }
-    .recent-rooms-label {
-      font-family: var(--font-mono, monospace); font-size: 0.7rem; text-transform: uppercase;
-      letter-spacing: 0.1em; color: var(--on-card-soft, #6b5f78); margin: 0 0 8px; font-weight: 500;
-    }
-    .recent-rooms-list { display: flex; flex-direction: column; gap: 8px; }
-    .recent-room-row {
-      display: flex; align-items: center; justify-content: space-between;
-      width: 100%; padding: 12px 14px; border-radius: 10px;
-      border: 1.5px dashed var(--border-card, rgba(36,28,48,0.18));
-      background: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
-      font-family: inherit; cursor: pointer; text-align: left;
-    }
-    .recent-room-row:active { transform: scale(0.98); }
-    .recent-room-row:disabled { opacity: 0.5; cursor: default; }
-    .recent-room-main { display: flex; flex-direction: column; gap: 2px; }
-    .recent-room-code { font-family: var(--font-mono, monospace); font-weight: 700; font-size: 0.92rem; letter-spacing: 0.04em; }
-    .recent-room-category { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); }
-    .recent-room-status { font-size: 0.76rem; color: var(--on-card-soft, #6b5f78); text-align: right; white-space: nowrap; margin-left: 10px; }
-    .recent-room-status.has-capsule { color: var(--garnet, #9c3348); font-weight: 600; }
-    .recent-room-row-extra.hidden { display: none; }
-    .recent-rooms-toggle {
-      background: none; border: none; width: 100%; text-align: center;
-      padding: 6px 4px 2px; margin-top: 2px;
-      font-family: var(--font-ui, inherit); font-size: 0.8rem; font-weight: 500;
-      color: var(--on-card-soft, #6b5f78); text-decoration: underline; text-underline-offset: 2px;
-      cursor: pointer; transition: opacity 0.2s ease;
-    }
-    .recent-rooms-toggle:active { opacity: 0.6; }
-  `;
-  document.head.appendChild(style);
-}
-
-// ====== AI Custom Deck Builder ======
-// Describe a vibe/situation, Gemini writes a matching deck, it gets saved
-// as a normal shareable pack (same packs/{code} structure, same report
-// button, same 18+ gate as any other custom pack).
-
-const DECKBUILDER_API_URL = "https://between-us-backend.vercel.app/api/deckbuilder";
-let generatedDeckQuestions = [];
-let deckBuilderOverlayEl = null;
-
-function ensureDeckBuilderButton() {
-  if (document.getElementById("deckbuilder-open-btn")) return;
-  const anchorBtn = document.getElementById("open-pack-creator-btn");
-  if (!anchorBtn) return;
-  const btn = document.createElement("button");
-  btn.id = "deckbuilder-open-btn";
-  btn.type = "button";
-  btn.className = "leave-link pack-creator-link";
-  btn.textContent = "✨ Generate a deck with AI →";
-  anchorBtn.insertAdjacentElement("afterend", btn);
-  btn.addEventListener("click", openDeckBuilderModal);
-}
-
-function ensureDeckBuilderUI() {
-  if (deckBuilderOverlayEl) return;
-  injectDeckBuilderStyles();
-
-  deckBuilderOverlayEl = document.createElement("div");
-  deckBuilderOverlayEl.id = "deckbuilder-overlay";
-  deckBuilderOverlayEl.className = "deckbuilder-overlay hidden";
-  deckBuilderOverlayEl.innerHTML = `
-    <div class="deckbuilder-modal">
-      <p class="deckbuilder-title">✨ AI Deck Builder</p>
-      <p class="deckbuilder-subtitle">Describe the vibe or situation — I'll write a custom deck for it.</p>
-      <textarea id="deckbuilder-description" rows="3" maxlength="500" placeholder="e.g. together 6 months, want to go deeper — or game night with my best friends, keep it light and hilarious"></textarea>
-      <label class="deckbuilder-count-label" for="deckbuilder-count">How many questions?</label>
-      <select id="deckbuilder-count" class="select-input">
-        <option value="10">10</option>
-        <option value="20" selected>20</option>
-        <option value="30">30</option>
-      </select>
-      <div id="deckbuilder-preview" class="deckbuilder-preview hidden"></div>
-      <div class="deckbuilder-actions">
-        <button type="button" id="deckbuilder-cancel-btn" class="deckbuilder-btn cancel">Cancel</button>
-        <button type="button" id="deckbuilder-generate-btn" class="deckbuilder-btn generate">Generate ✨</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(deckBuilderOverlayEl);
-
-  document.getElementById("deckbuilder-cancel-btn").addEventListener("click", closeDeckBuilderModal);
-  deckBuilderOverlayEl.addEventListener("click", (e) => {
-    if (e.target === deckBuilderOverlayEl) closeDeckBuilderModal();
-  });
-  document.getElementById("deckbuilder-generate-btn").addEventListener("click", async () => {
-    const genBtn = document.getElementById("deckbuilder-generate-btn");
-    if (genBtn.dataset.ready === "true") {
-      await useGeneratedDeck();
-    } else {
-      await generateDeckWithAI();
-    }
-  });
-}
-
-function openDeckBuilderModal() {
-  ensureDeckBuilderUI();
-  document.getElementById("deckbuilder-description").value = "";
-  document.getElementById("deckbuilder-preview").classList.add("hidden");
-  const genBtn = document.getElementById("deckbuilder-generate-btn");
-  genBtn.textContent = "Generate ✨";
-  genBtn.dataset.ready = "false";
-  generatedDeckQuestions = [];
-  deckBuilderOverlayEl.classList.remove("hidden");
-}
-
-function closeDeckBuilderModal() {
-  if (deckBuilderOverlayEl) deckBuilderOverlayEl.classList.add("hidden");
-}
-
-async function generateDeckWithAI() {
-  const description = document.getElementById("deckbuilder-description").value.trim();
-  const count = document.getElementById("deckbuilder-count").value;
-  if (!description) {
-    toast("Describe the vibe first.");
-    return;
-  }
-  const genBtn = document.getElementById("deckbuilder-generate-btn");
-  const previewEl = document.getElementById("deckbuilder-preview");
-  genBtn.disabled = true;
-  genBtn.textContent = "Generating...";
-  previewEl.classList.add("hidden");
-
-  try {
-    const res = await fetch(DECKBUILDER_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description, count }),
-    });
-    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-    const result = await res.json();
-    if (!result.success || !result.questions || !result.questions.length) {
-      throw new Error("No questions returned");
-    }
-
-    generatedDeckQuestions = result.questions;
-    previewEl.innerHTML =
-      `<p class="deckbuilder-preview-title">Preview (${result.questions.length} questions):</p>` +
-      result.questions.slice(0, 4).map((q) => `<p class="deckbuilder-preview-q">• ${escapeHtml(q)}</p>`).join("") +
-      (result.questions.length > 4 ? `<p class="deckbuilder-preview-more">+ ${result.questions.length - 4} more</p>` : "");
-    previewEl.classList.remove("hidden");
-
-    genBtn.textContent = "Use This Deck ✓";
-    genBtn.dataset.ready = "true";
-  } catch (err) {
-    console.error(err);
-    toast("Couldn't generate a deck — try again.");
-    genBtn.textContent = "Generate ✨";
-    genBtn.dataset.ready = "false";
-  } finally {
-    genBtn.disabled = false;
-  }
-}
-
-async function useGeneratedDeck() {
-  if (!generatedDeckQuestions.length || !db) return;
-  const genBtn = document.getElementById("deckbuilder-generate-btn");
-  genBtn.disabled = true;
-  genBtn.textContent = "Saving...";
-  try {
-    const code = await generateUniquePackCode();
-    const description = document.getElementById("deckbuilder-description").value.trim();
-    const author = nameInput.value.trim() || "Anonymous";
-    const shortTitle = description.length > 40 ? description.slice(0, 40) + "…" : description;
-    const title = `✨ ${shortTitle}`;
-
-    await setDoc(doc(db, "packs", code), {
-      title,
-      author,
-      questions: generatedDeckQuestions,
-      createdAt: serverTimestamp(),
-      aiGenerated: true,
-    });
-
-    const pack = { code, title, questions: generatedDeckQuestions };
-    closeDeckBuilderModal();
-    if (!requireName()) return;
-    createStep.classList.remove("hidden");
-    joinStep.classList.add("hidden");
-    selectCategoryWithGate("custompack", () => {
-      loadedPack = pack;
-      selectedCategory = "custompack";
-      packCodeInput.value = code;
-      packStatusEl.textContent = `✓ Loaded "${title}" — ${generatedDeckQuestions.length} questions, code ${code}`;
-      packStatusEl.classList.add("ok");
-      renderCategoryChips();
-      packPanelEl.classList.remove("hidden");
-      ensureReportPackButton();
-      toast(`Deck ready — saved as ${code}`);
-    });
-  } catch (err) {
-    console.error(err);
-    toast("Couldn't save that deck — try again.");
-  } finally {
-    genBtn.disabled = false;
-  }
-}
-
-function injectDeckBuilderStyles() {
-  if (document.getElementById("deckbuilder-styles")) return;
-  const style = document.createElement("style");
-  style.id = "deckbuilder-styles";
-  style.textContent = `
-    .deckbuilder-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.75);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1050; padding: 20px; backdrop-filter: blur(3px);
-    }
-    .deckbuilder-modal {
-      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
-      border-radius: 16px; max-width: 440px; width: 100%;
-      padding: 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      max-height: 86vh; overflow-y: auto;
-    }
-    .deckbuilder-title { font-family: 'Fraunces', serif; font-size: 19px; margin: 0 0 6px; }
-    .deckbuilder-subtitle { font-size: 13px; opacity: 0.75; margin: 0 0 16px; line-height: 1.4; }
-    #deckbuilder-description {
-      width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15);
-      padding: 10px 12px; font-family: inherit; font-size: 15px; resize: vertical;
-      margin-bottom: 14px;
-    }
-    .deckbuilder-count-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 6px; }
-    #deckbuilder-count { margin-bottom: 6px; }
-    .deckbuilder-preview {
-      margin-top: 14px; padding: 12px; border-radius: 10px;
-      background: rgba(0,0,0,0.05); font-size: 13px; line-height: 1.5;
-    }
-    .deckbuilder-preview-title { margin: 0 0 6px; font-weight: 700; opacity: 0.7; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-    .deckbuilder-preview-q { margin: 3px 0; }
-    .deckbuilder-preview-more { margin: 6px 0 0; opacity: 0.6; font-style: italic; }
-    .deckbuilder-actions { display: flex; gap: 10px; margin-top: 18px; }
-    .deckbuilder-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem; }
-    .deckbuilder-btn.cancel { background: rgba(0,0,0,0.08); color: inherit; }
-    .deckbuilder-btn.generate { background: var(--gold, #c9a15a); color: #241c30; }
-    .deckbuilder-btn:disabled { opacity: 0.6; cursor: default; }
-  `;
-  document.head.appendChild(style);
-}
-
-// ====== PWA install support ======
-// Registers the service worker so the browser offers "Add to Home Screen."
-// Wrapped defensively — if this fails for any reason (unsupported browser,
-// scope issue), it only logs a warning and never touches app functionality.
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((err) => {
-      console.warn("Service worker registration failed (app still works fine without it):", err);
-    });
-  });
-}
-
-// ====== Premium Polish — micro-interactions ======
-// Purely additive: these attach alongside the existing handlers above and
-// only ever toggle a CSS animation class. Nothing here changes what
-// actually happens on submit, skip, or favorite — same Firestore calls,
-// same game flow, just visual feedback layered on top.
-
-answerFormEl.addEventListener("submit", () => {
-  const btn = answerFormEl.querySelector(".btn-primary");
-  if (!btn) return;
-  btn.classList.remove("success-flash");
-  void btn.offsetWidth;
-  btn.classList.add("success-flash");
-});
-
-skipBtn.addEventListener("click", () => {
-  skipBtn.classList.remove("skip-btn-tap");
-  void skipBtn.offsetWidth;
-  skipBtn.classList.add("skip-btn-tap");
-});
-
-favoriteBtn.addEventListener("click", () => {
-  favoriteBtn.classList.remove("bounce");
-  void favoriteBtn.offsetWidth;
-  favoriteBtn.classList.add("bounce");
-});
+      border: none; border-radius: 999px; width: 40px; height: 40px; flex-shrink:
