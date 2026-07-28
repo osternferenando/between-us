@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Between Us — a two-player deck</title>
+<title>Between Us — a card deck for real conversations</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#14131f">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,9 +27,9 @@
   <!-- LANDING -->
   <section id="screen-landing" class="screen">
     <div class="brand">
-      <p class="kicker">A better way to talk, connect, and discover each other</p>
+      <p class="kicker">A card deck for real conversations</p>
       <h1>Between&nbsp;Us</h1>
-      <p class="tagline">Shuffle a card. Answer it together.</p>
+      <p class="tagline">Good conversations don't always happen by themselves.</p>
     </div>
 
     <div class="panel">
@@ -37,8 +37,8 @@
       <input id="name-input" type="text" maxlength="20" placeholder="e.g. Taylor" autocomplete="off">
 
       <div id="mode-buttons" class="mode-buttons">
-        <button id="show-create-btn" class="btn btn-primary" type="button">Create a Room</button>
-        <button id="show-join-btn" class="btn btn-secondary" type="button">Join a Room</button>
+        <button id="show-create-btn" class="btn btn-primary" type="button">Start a Conversation</button>
+        <button id="show-join-btn" class="btn btn-secondary" type="button">Join a Conversation</button>
       </div>
 
       <div id="create-step" class="substep hidden">
@@ -85,13 +85,13 @@
         <label class="field-label" for="custom-code-input">Custom room code (optional)</label>
         <input id="custom-code-input" type="text" maxlength="20" placeholder="e.g. BRENDON-ASHLEY" autocomplete="off" style="text-transform:uppercase">
 
-        <button id="create-room-btn" class="btn btn-primary" type="button">Create Room</button>
+        <button id="create-room-btn" class="btn btn-primary" type="button">Start Conversation</button>
       </div>
 
       <div id="join-step" class="substep hidden">
         <label class="field-label" for="join-code-input">Room code</label>
         <input id="join-code-input" type="text" maxlength="6" placeholder="e.g. K7QXR" autocomplete="off" style="text-transform:uppercase">
-        <button id="join-room-btn" class="btn btn-primary" type="button">Join Room</button>
+        <button id="join-room-btn" class="btn btn-primary" type="button">Join Conversation</button>
       </div>
     </div>
 
