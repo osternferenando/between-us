@@ -152,6 +152,11 @@ const QUOTES = [
   "Some of the best conversations start with a random question.",
   "You just learned something you didn't know this morning.",
 ];
+const SKIP_QUOTES = [
+  "No worries — not every question has to land. Next one's up.",
+  "A pass is fine too. Onward.",
+  "Some questions just aren't the right fit, and that's okay.",
+];
 
 let soundEnabled = localStorage.getItem("bu_sound") !== "off";
 let favorites = getFavorites();
@@ -973,7 +978,9 @@ if (allAnswered && isStalling) {
     if (idx !== lastRevealedIndex) {
       lastRevealedIndex = idx;
       playRevealSound();
-      revealQuoteEl.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      const allSkipped = sortedIds.every((id) => answersForQ[id] === SKIPPED);
+      const quotePool = allSkipped ? SKIP_QUOTES : QUOTES;
+      revealQuoteEl.textContent = quotePool[Math.floor(Math.random() * quotePool.length)];
     }
 
     if (idx !== celebratedIndex && MILESTONES.includes(idx + 1)) {
@@ -1065,7 +1072,8 @@ function renderVoteGame(data, sortedIds) {
     if (idx !== lastRevealedIndex) {
       lastRevealedIndex = idx;
       playRevealSound();
-      revealQuoteEl.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      const quotePool = maxVotes === 0 ? SKIP_QUOTES : QUOTES;
+      revealQuoteEl.textContent = quotePool[Math.floor(Math.random() * quotePool.length)];
     }
     if (idx !== celebratedIndex && MILESTONES.includes(idx + 1)) {
       celebratedIndex = idx;
