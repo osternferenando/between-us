@@ -1506,7 +1506,6 @@ async function autoIntervene(data) {
         console.log("🤖 Question ready for next card:");
         console.log("🤖 " + aiQuestion);
         console.log("🤖 (Will display when player clicks 'Draw Next Card')");
-        toast("💭 Something new is coming up next");
         
     } catch (e) {
         console.error("🤖 ❌ Mediator failed:", e.message);
