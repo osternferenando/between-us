@@ -969,3 +969,81 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   opacity: 0;
 }
 
+/* ========== Phase 7: Desktop Layout & Final Polish ========== */
+
+/* Desktop / iPad Two-Column Layout */
+@media (min-width: 900px) {
+  #app {
+    max-width: 960px;
+    padding: 40px;
+    gap: 32px;
+  }
+  
+  /* When chat is open on desktop, create a side-by-side grid */
+  body.chat-open-desktop #app {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    align-items: start;
+  }
+  
+  /* On desktop, the chat overlay becomes a static sidebar */
+  body.chat-open-desktop .chat-overlay {
+    position: static;
+    height: auto;
+    background: transparent;
+    backdrop-filter: none;
+    animation: none;
+  }
+  
+  body.chat-open-desktop .chat-panel {
+    height: calc(100vh - 80px);
+    max-height: none;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card-lg);
+    animation: none;
+  }
+  
+  body.chat-open-desktop .chat-sheet-handle,
+  body.chat-open-desktop .chat-close-btn {
+    display: none;
+  }
+  
+  /* Hide the floating chat toggle on desktop when chat is open */
+  body.chat-open-desktop .chat-toggle {
+    display: none !important;
+  }
+}
+
+/* Journal Modal — Design System Integration */
+.journal-modal {
+  position: fixed; inset: 0;
+  background: rgba(20, 18, 14, 0.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1100; padding: 20px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: agegate-backdrop-in 0.25s ease-out;
+}
+.journal-container {
+  background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%), var(--card);
+  color: var(--on-card);
+  border: 1px solid var(--border-card);
+  border-radius: 22px; max-width: 500px; width: 100%;
+  padding: 32px 28px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.03);
+  animation: capsule-modal-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.journal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border-card); }
+.journal-header h2 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 500; font-optical-sizing: auto; letter-spacing: -0.01em; }
+.journal-close { background: none; border: none; font-size: 28px; cursor: pointer; color: var(--on-card-soft); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 999px; transition: background 0.2s ease; }
+.journal-close:hover { background: rgba(0,0,0,0.05); }
+.journal-category { display: inline-block; background: var(--gold); color: #241c30; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px; font-family: var(--font-mono); }
+.journal-text { font-family: var(--font-display); font-style: italic; font-size: 17px; line-height: 1.65; margin: 16px 0; padding: 20px; background: var(--card-2); border-left: 3px solid var(--garnet); border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); font-optical-sizing: auto; }
+.journal-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--on-card-soft); font-family: var(--font-mono); letter-spacing: 0.04em; padding-top: 8px; }
+.journal-actions { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+.journal-btn { flex: 1; min-width: 120px; padding: 14px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-family: var(--font-ui); font-size: 0.95rem; transition: transform 0.2s var(--ease-spring), box-shadow 0.2s ease, filter 0.15s ease; }
+.journal-btn:active { transform: translateY(2px) scale(0.97); }
+.journal-btn.primary { background: var(--gold); color: #241c30; box-shadow: 0 2px 0 var(--garnet), 0 6px 16px rgba(156, 51, 72, 0.22); }
+.journal-btn.primary:active { box-shadow: 0 0 0 var(--garnet); filter: brightness(0.97); }
+.journal-btn.secondary { background: var(--card-2); color: var(--on-card); border: 1px solid var(--border-card); box-shadow: 0 2px 0 var(--border-card), 0 4px 12px rgba(36, 28, 48, 0.05); }
+.journal-btn.secondary:active { box-shadow: 0 0 0 var(--border-card); filter: brightness(0.98); }
+
