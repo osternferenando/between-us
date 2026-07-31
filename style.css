@@ -891,3 +891,24 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
     transform: none !important;
   }
   }
+
+/* ========== BUG FIX: Top-Bar & Button Overlaps ========== */
+
+/* 1. Align top-right toggles horizontally to create a clean "system row" */
+.sound-toggle { 
+  top: 16px; 
+  right: 68px; /* Moves next to theme toggle (16px + 44px width + 8px gap) */
+} 
+
+/* 2. Push all app content down to clear the fixed top buttons */
+/* Buttons end at 60px. 76px gives a perfect 16px breathing gap. */
+#app {
+  padding-top: 76px; 
+}
+
+/* 3. Keep desktop centering intact while respecting the new top padding */
+@media (min-width: 640px) {
+  #app {
+    justify-content: center; 
+  }
+}
