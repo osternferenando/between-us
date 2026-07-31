@@ -1423,3 +1423,73 @@ body[data-theme="light"]::after { opacity: 0.4; }
   #screen-game:has(#waiting-for-other:not(.hidden)) .question-card,
   #waiting-for-other:not(.hidden)::before { animation: none !important; }
 }
+
+/* =====================================================================
+   CHAT POLISH — focus artifact, bottom-anchored thread, ambient glow,
+   backdrop haze. Pure CSS (the menu-overflow fix is the one JS patch
+   below). Append to the END of style.css so it beats injected styles.
+   ===================================================================== */
+
+/* 1. Kill the leaked focus ring on the chat textarea — the composer's
+      gold focus-within ring is the only affordance that should show.
+      ID specificity guarantees this beats the global textarea:focus rule. */
+#chat-input,
+#chat-input:focus,
+#chat-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  transform: none !important;
+}
+
+/* 2. Bottom-anchor the thread safely. margin-top:auto on the first node
+      soaks up all slack and pushes the conversation to the composer —
+      unlike justify-content:flex-end this NEVER clips the top when the
+      thread overflows (the canonical flexbox-overflow-safe pattern).
+      When the list is empty this selector matches nothing, so the
+      centered "Say hello…" empty state is untouched. */
+#chat-messages > *:first-child { margin-top: auto; }
+
+/* 3. Ambient life in the scroll area — a faint warm pool under the header
+      so the cream never reads as a flat blank sheet. It sits at the top of
+      the visible area (backgrounds on a scroll container don't travel with
+      the messages) and stays behind the bubbles. */
+#chat-messages {
+  background:
+    radial-gradient(100% 38% at 50% -8%, rgba(201, 161, 90, 0.07), transparent 72%);
+}
+
+/* 4. Give the empty state a slow breath so the quiet room feels alive,
+      not broken. Re-uses a gentle opacity drift; reduced-motion (the
+      global block) already neutralises it. */
+#chat-messages:empty::before {
+  animation: chat-empty-breathe 4.5s ease-in-out infinite;
+}
+@keyframes chat-empty-breathe {
+  0%, 100% { opacity: 0.42; transform: translateY(0); }
+  50%      { opacity: 0.62; transform: translateY(-3px); }
+}
+
+/* 5. Soften what peeks above the sheet — a touch more haze so the blurred
+      game (and the half-seen control circles) recede into a calm wash
+      instead of competing with the chat. Modest on purpose. */
+.chat-overlay {
+  background: rgba(20, 16, 12, 0.55) !important;
+  backdrop-filter: blur(7px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(120%) !important;
+}
+body[data-theme="light"] .chat-overlay {
+  background: rgba(60, 48, 30, 0.32) !important;
+}
+
+/* 6. A little desktop life on the thread — bubbles lift on hover where a
+      pointer exists; harmless on touch. */
+@media (hover: hover) and (pointer: fine) {
+  .chat-bubble { transition: transform 0.18s var(--ease-spring), box-shadow 0.18s var(--ease-smooth); }
+  .chat-bubble:hover { transform: translateY(-1px); }
+}
+
+/* Respect reduced motion for the new breath */
+@media (prefers-reduced-motion: reduce) {
+  #chat-messages:empty::before { animation: none !important; opacity: 0.55 !important; transform: none !important; }
+}
