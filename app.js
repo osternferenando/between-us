@@ -2763,26 +2763,31 @@ function ensureCapsuleUI() {
   capsuleOverlayEl = document.createElement("div");
   capsuleOverlayEl.id = "capsule-overlay";
   capsuleOverlayEl.className = "capsule-overlay hidden";
-  capsuleOverlayEl.innerHTML = `
-    <div class="capsule-modal">
-      <p class="capsule-modal-title">🔒 Seal a Time Capsule</p>
-      <p class="capsule-modal-subtitle">Write something for later — it stays sealed until the date you pick.</p>
-      <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future..."></textarea>
-      <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label>
-      <input type="datetime-local" id="capsule-date-input">
-      <div class="capsule-modal-actions">
-        <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button>
-        <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button>
-      </div>
-    </div>
-  `;
+  capsuleOverlayEl.innerHTML = `<div class="capsule-modal"> <p class="capsule-eyebrow">✦ A letter to your future selves</p> <div class="capsule-head"> <span class="capsule-seal-mark" aria-hidden="true">🔒</span> <div class="capsule-head-text"> <p class="capsule-modal-title">Seal a Time Capsule</p> </div> </div> <p class="capsule-modal-subtitle">Write something for later — it stays sealed until the date you pick.</p> <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future…"></textarea> <div class="capsule-field"> <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label> <input type="datetime-local" id="capsule-date-input"> <p id="capsule-countdown" class="capsule-countdown"></p> </div> <div class="capsule-modal-actions"> <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button> <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button> </div> </div>`;
   document.body.appendChild(capsuleOverlayEl);
-
   document.getElementById("capsule-cancel-btn").addEventListener("click", closeCapsuleComposer);
   document.getElementById("capsule-seal-btn").addEventListener("click", sealTimeCapsule);
+  document.getElementById("capsule-date-input").addEventListener("input", updateCapsuleCountdown);
   capsuleOverlayEl.addEventListener("click", (e) => {
     if (e.target === capsuleOverlayEl) closeCapsuleComposer();
   });
+}
+
+// Live "sealed for N days · opens …" line under the date picker.
+// Presentation only — never read by sealTimeCapsule, never stored, never
+// synced. It just updates as the player moves the date (and once on open).
+function updateCapsuleCountdown() {
+  const line = document.getElementById("capsule-countdown");
+  const input = document.getElementById("capsule-date-input");
+  if (!line || !input) return;
+  if (!input.value) { line.textContent = ""; return; }
+  const ms = new Date(input.value).getTime();
+  if (isNaN(ms)) { line.textContent = ""; return; }
+  const days = Math.ceil((ms - Date.now()) / 86400000);
+  const dateStr = new Date(ms).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  if (days <= 0) line.textContent = "Pick a date in the future";
+  else if (days === 1) line.textContent = `Opens tomorrow · ${dateStr}`;
+  else line.textContent = `Sealed for ${days} days · opens ${dateStr}`;
 }
 
 function openCapsuleComposer() {
@@ -2790,7 +2795,11 @@ function openCapsuleComposer() {
   const dateInput = document.getElementById("capsule-date-input");
   dateInput.min = new Date(Date.now() + 60000).toISOString().slice(0, 16);
   document.getElementById("capsule-text-input").value = "";
-  dateInput.value = "";
+  // Sensible default so the field never reads as an empty void — a letter
+  // sealed for a month from now. Pure presentation: the future-date
+  // validation inside sealTimeCapsule is completely unchanged.
+  dateInput.value = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+  updateCapsuleCountdown();
   capsuleOverlayEl.classList.remove("hidden");
 }
 
@@ -2904,100 +2913,202 @@ function injectCapsuleStyles() {
   const style = document.createElement("style");
   style.id = "capsule-styles";
   style.textContent = `
-    .chat-header-actions { display: flex; align-items: center; gap: 4px; }
-    
+    /* ---- Composer overlay: lit-on-the-table backdrop ---- */
     .capsule-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.65);
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 36%, rgba(201,161,90,0.12), transparent 62%),
+        rgba(20, 18, 14, 0.66);
       display: flex; align-items: center; justify-content: center;
-      z-index: 1050; padding: 20px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-      animation: capsule-backdrop-in 0.25s ease-out;
+      z-index: 1050; padding: 20px;
+      backdrop-filter: blur(7px) saturate(120%); -webkit-backdrop-filter: blur(7px) saturate(120%);
+      animation: capsule-backdrop-in 0.28s var(--ease-smooth, ease-out);
     }
     @keyframes capsule-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-    
+
+    /* ---- The card: thick cream cardstock with a warm halo ---- */
     .capsule-modal {
-      background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%), var(--card, #f6efe1); 
+      position: relative; overflow: hidden;            /* clips the glow + guarantees no field escape */
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 26%, rgba(0,0,0,0.015) 100%),
+        var(--card, #f6efe1);
       color: var(--on-card, #241c30);
-      border-radius: 22px; max-width: 420px; width: 100%;
-      padding: 28px 24px; 
-      box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.03);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      animation: capsule-modal-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-      border: 1px solid var(--border-card, rgba(36,28,48,0.08));
+      border: 1px solid var(--border-card, rgba(36,28,48,0.10));
+      border-radius: 24px; max-width: 420px; width: 100%;
+      padding: 30px 26px 26px;
+      box-shadow:
+        0 28px 70px rgba(0,0,0,0.40),
+        0 0 0 1px rgba(255,255,255,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.7),
+        inset 0 -1px 0 rgba(0,0,0,0.03);
+      font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
+      animation: capsule-modal-in 0.42s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1));
     }
-    @keyframes capsule-modal-in { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-    
-    .capsule-modal-title { 
-      font-family: 'Fraunces', serif; font-size: 22px; margin: 0 0 6px; 
-      font-weight: 500; letter-spacing: -0.01em; font-optical-sizing: auto; 
+    .capsule-modal::before {                            /* soft lamplight pooling at the top */
+      content: ""; position: absolute; top: -42%; left: 50%; transform: translateX(-50%);
+      width: 150%; height: 80%;
+      background: radial-gradient(ellipse at center, var(--gold-soft, rgba(201,161,90,0.20)), transparent 70%);
+      pointer-events: none; z-index: 0;
     }
-    .capsule-modal-subtitle { font-size: 14px; opacity: 0.75; margin: 0 0 20px; line-height: 1.5; }
-    
+    .capsule-modal > * { position: relative; z-index: 1; }
+    @keyframes capsule-modal-in { from { opacity: 0; transform: scale(0.94) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+    /* ---- Staggered entrance for the inner fields ---- */
+    .capsule-eyebrow, .capsule-head, .capsule-modal-subtitle,
+    #capsule-text-input, .capsule-field, .capsule-modal-actions {
+      animation: capsule-field-rise 0.5s var(--ease-out, ease-out) backwards;
+    }
+    .capsule-head { animation-delay: 0.06s; }
+    .capsule-modal-subtitle { animation-delay: 0.12s; }
+    #capsule-text-input { animation-delay: 0.18s; }
+    .capsule-field { animation-delay: 0.24s; }
+    .capsule-modal-actions { animation-delay: 0.30s; }
+    @keyframes capsule-field-rise { from { opacity: 0; transform: translateY(9px); } }
+
+    /* ---- Brand eyebrow + wax-seal header lockup ---- */
+    .capsule-eyebrow {
+      font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+      font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold, #c9a15a); font-weight: 600; margin: 0 0 14px;
+    }
+    .capsule-head { display: flex; align-items: center; gap: 14px; margin: 0 0 6px; }
+    .capsule-seal-mark {
+      width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; line-height: 1; color: #fff9ef;
+      background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,0.38), transparent 46%),
+        radial-gradient(circle at 50% 52%, #b8405a, var(--garnet, #9c3348) 72%);
+      box-shadow: 0 3px 9px rgba(156,51,72,0.42), inset 0 1px 1px rgba(255,255,255,0.4), inset 0 -2px 5px rgba(0,0,0,0.28);
+    }
+    .capsule-seal-mark::after {                          /* scalloped wax-edge hint */
+      content: ""; position: absolute; inset: -3px; border-radius: 50%;
+      border: 1.5px dashed rgba(156,51,72,0.35);
+    }
+    .capsule-head-text { display: flex; flex-direction: column; }
+    .capsule-modal-title {
+      font-family: var(--font-display, 'Fraunces', serif);
+      font-size: 1.5rem; margin: 0; font-weight: 550; letter-spacing: -0.012em;
+      line-height: 1.1; font-optical-sizing: auto;
+    }
+    .capsule-modal-subtitle { font-size: 0.92rem; opacity: 0.72; margin: 0 0 18px; line-height: 1.5; }
+
+    /* ---- The letter: debossed, placeholder begins the note in italic serif ---- */
     #capsule-text-input {
-      width: 100%; border-radius: 12px; border: 1.5px solid var(--border-card, rgba(36,28,48,0.12));
-      padding: 12px 14px; font-family: inherit; font-size: 15px; resize: vertical;
-      margin-bottom: 16px; background: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 1px 0 rgba(255,255,255,0.6);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      width: 100%; max-width: 100%; box-sizing: border-box;
+      border-radius: 14px; border: 1.5px solid var(--border-card, rgba(36,28,48,0.12));
+      padding: 14px 16px; font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
+      font-size: 15.5px; line-height: 1.55; resize: vertical; min-height: 96px;
+      margin: 0 0 18px; background: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,0.6);
+      transition: border-color 0.2s var(--ease-smooth, ease), box-shadow 0.2s var(--ease-smooth, ease);
+    }
+    #capsule-text-input::placeholder {
+      font-family: var(--font-display, 'Fraunces', serif);
+      font-style: italic; font-size: 1.05rem; opacity: 0.5;
     }
     #capsule-text-input:focus {
       outline: none; border-color: var(--garnet, #9c3348);
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 0 0 4px rgba(156, 51, 72, 0.15);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.04), 0 0 0 4px var(--garnet-soft, rgba(156,51,72,0.16));
     }
-    
-    .capsule-date-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 8px; font-weight: 500; }
-    
+
+    /* ---- Date field: calendar glyph so it's never a void; light UA chrome in dark mode ---- */
+    .capsule-field { display: flex; flex-direction: column; min-width: 0; }
+    .capsule-date-label {
+      display: block; font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+      font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--on-card-soft, #6b5f78); opacity: 0.85; margin: 0 0 8px; font-weight: 600;
+    }
     #capsule-date-input {
-      width: 100%; border-radius: 12px; border: 1.5px solid var(--border-card, rgba(36,28,48,0.12));
-      padding: 12px 14px; font-family: inherit; font-size: 15px; background: var(--card-2, #fffaf1);
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 1px 0 rgba(255,255,255,0.6);
-      color: var(--on-card, #241c30);
+      width: 100%; max-width: 100%; box-sizing: border-box; color-scheme: light;
+      border-radius: 14px; border: 1.5px solid var(--border-card, rgba(36,28,48,0.12));
+      padding: 13px 16px 13px 44px; font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
+      font-size: 15px; background-color: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%236b5f78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='3'/%3E%3Cline x1='3' y1='9' x2='21' y2='9'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 15px center; background-size: 18px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,0.6);
+      transition: border-color 0.2s var(--ease-smooth, ease), box-shadow 0.2s var(--ease-smooth, ease);
     }
-    
-    .capsule-modal-actions { display: flex; gap: 12px; margin-top: 24px; }
-    
-    .capsule-btn { 
-      flex: 1; padding: 14px; border-radius: 12px; border: none; 
-      font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem; 
-      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.15s ease;
+    #capsule-date-input:focus {
+      outline: none; border-color: var(--garnet, #9c3348);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.04), 0 0 0 4px var(--garnet-soft, rgba(156,51,72,0.16));
+    }
+
+    /* ---- Live "sealed for N days" line ---- */
+    .capsule-countdown {
+      margin: 9px 2px 0; min-height: 1em;
+      font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+      font-size: 0.72rem; letter-spacing: 0.01em; font-weight: 600;
+      color: var(--garnet, #9c3348);
+      display: flex; align-items: center; gap: 6px;
+      transition: opacity 0.25s var(--ease-smooth, ease);
+    }
+    .capsule-countdown:empty { opacity: 0; }
+    .capsule-countdown:not(:empty)::before { content: "\\23F3"; font-size: 0.82rem; }
+
+    /* ---- Actions: harmonised with the main app's tactile buttons ---- */
+    .capsule-modal-actions { display: flex; gap: 12px; margin-top: 22px; }
+    .capsule-btn {
+      flex: 1; padding: 14px; border-radius: 13px; border: none;
+      font-weight: 600; cursor: pointer; font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif);
+      font-size: 0.96rem; letter-spacing: 0.005em;
+      transition: transform 0.2s var(--ease-spring, cubic-bezier(0.34,1.56,0.64,1)), box-shadow 0.2s ease, filter 0.15s ease;
     }
     .capsule-btn:active { transform: translateY(2px) scale(0.97); }
-    
-    .capsule-btn.cancel { 
-      background: var(--card-2, #fffaf1); color: var(--on-card, #241c30); 
+    .capsule-btn.cancel {
+      background: var(--card-2, #fffaf1); color: var(--on-card, #241c30);
       border: 1px solid var(--border-card, rgba(36,28,48,0.12));
-      box-shadow: 0 2px 0 var(--border-card), 0 4px 12px rgba(36, 28, 48, 0.05);
+      box-shadow: 0 2px 0 var(--border-card, rgba(36,28,48,0.12)), 0 4px 12px rgba(36,28,48,0.06);
     }
-    .capsule-btn.cancel:active { box-shadow: 0 0 0 var(--border-card); filter: brightness(0.98); }
-    
-    .capsule-btn.seal { 
-      background: var(--gold, #c9a15a); color: #241c30; 
-      box-shadow: 0 2px 0 var(--garnet, #9c3348), 0 6px 16px rgba(156, 51, 72, 0.22);
+    .capsule-btn.cancel:active { box-shadow: 0 0 0 var(--border-card, rgba(36,28,48,0.12)); filter: brightness(0.98); }
+    .capsule-btn.seal {
+      background: var(--gold, #c9a15a); color: #241c30;
+      box-shadow: 0 2px 0 var(--garnet, #9c3348), 0 6px 16px rgba(156,51,72,0.24);
     }
-    .capsule-btn.seal:active { box-shadow: 0 0 0 var(--garnet, #9c3348), 0 2px 6px rgba(156, 51, 72, 0.18); filter: brightness(0.97); }
-    .capsule-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    
+    .capsule-btn.seal:active { box-shadow: 0 0 0 var(--garnet, #9c3348), 0 2px 6px rgba(156,51,72,0.18); filter: brightness(0.97); }
+    .capsule-btn:disabled { opacity: 0.85; cursor: wait; animation: btn-processing 1.8s ease-in-out infinite; box-shadow: none; transform: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .capsule-btn.cancel:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--border-card, rgba(36,28,48,0.12)), 0 8px 18px rgba(36,28,48,0.10); }
+      .capsule-btn.seal:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 3px 0 var(--garnet, #9c3348), 0 10px 22px rgba(156,51,72,0.30); }
+    }
+
+    /* =========================================================
+       In-timeline capsule BUBBLES (locked / unlocked) — carried
+       over and harmonised; these live in the chat, not the modal.
+       ========================================================= */
     .chat-bubble.capsule-bubble {
-      align-self: center;
+      align-self: center; max-width: 88%;
       border: 1.5px dashed var(--gold, #c9a15a);
       background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(201,161,90,0.08) 100%);
-      max-width: 88%;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5);
     }
     .capsule-bubble.locked { text-align: center; padding: 14px 18px; }
-    .capsule-label { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; opacity: 0.85; text-transform: uppercase; font-weight: 500; }
-    .capsule-unlock-date { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--garnet, #9c3348); }
-    
+    .capsule-label {
+      margin: 0; font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+      font-size: 0.66rem; letter-spacing: 0.06em; opacity: 0.85;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .capsule-unlock-date { margin: 6px 0 0; font-size: 0.86rem; font-weight: 600; color: var(--garnet, #9c3348); }
     .capsule-bubble.unlocked {
       border-style: solid; border-color: var(--border-card, rgba(36,28,48,0.12));
-      background: var(--card-2, #fffaf1);
+      background: var(--card-2, #fffaf1); padding: 14px 18px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8);
-      padding: 14px 18px;
     }
-    .capsule-bubble.unlocked p:not(.capsule-label) { margin: 8px 0 0; font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; line-height: 1.5; font-optical-sizing: auto; }
+    .capsule-bubble.unlocked p:not(.capsule-label) {
+      margin: 8px 0 0; font-family: var(--font-display, 'Fraunces', serif);
+      font-style: italic; font-size: 15px; line-height: 1.5; font-optical-sizing: auto;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .capsule-overlay, .capsule-modal, .capsule-eyebrow, .capsule-head,
+      .capsule-modal-subtitle, #capsule-text-input, .capsule-field,
+      .capsule-modal-actions, .capsule-btn:disabled { animation: none !important; }
+      .capsule-eyebrow, .capsule-head, .capsule-modal-subtitle,
+      #capsule-text-input, .capsule-field, .capsule-modal-actions { opacity: 1 !important; transform: none !important; }
+    }
   `;
   document.head.appendChild(style);
 }
-
 
 // ====== Recent Rooms — the actual fix for "my capsule disappeared" ======
 // Nothing in Firestore was ever deleted — the real problem was that once
