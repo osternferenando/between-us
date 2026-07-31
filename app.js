@@ -2763,7 +2763,7 @@ function ensureCapsuleUI() {
   capsuleOverlayEl = document.createElement("div");
   capsuleOverlayEl.id = "capsule-overlay";
   capsuleOverlayEl.className = "capsule-overlay hidden";
-  capsuleOverlayEl.innerHTML = `<div class="capsule-modal"> <p class="capsule-eyebrow">✦ A letter to your future selves</p> <div class="capsule-head"> <span class="capsule-seal-mark" aria-hidden="true">🔒</span> <div class="capsule-head-text"> <p class="capsule-modal-title">Seal a Time Capsule</p> </div> </div> <p class="capsule-modal-subtitle">Write something for later — it stays sealed until the date you pick.</p> <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future…"></textarea> <div class="capsule-field"> <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label> <input type="datetime-local" id="capsule-date-input"> <p id="capsule-countdown" class="capsule-countdown"></p> </div> <div class="capsule-modal-actions"> <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button> <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button> </div> </div>`;
+  capsuleOverlayEl.innerHTML = `<div class="capsule-modal"> <p class="capsule-eyebrow">✦ A letter to your future selves</p> <div class="capsule-head"> <span class="capsule-seal-mark" aria-hidden="true">🔒</span> <div class="capsule-head-text"> <p class="capsule-modal-title">Seal a Time Capsule</p> </div> </div> <p class="capsule-modal-subtitle">Write something for later, it stays sealed until the date you pick.</p> <textarea id="capsule-text-input" rows="4" maxlength="2000" placeholder="Dear you, in the future…"></textarea> <div class="capsule-field"> <label class="capsule-date-label" for="capsule-date-input">Unlocks on</label> <input type="datetime-local" id="capsule-date-input"> <p id="capsule-countdown" class="capsule-countdown"></p> </div> <div class="capsule-modal-actions"> <button type="button" id="capsule-cancel-btn" class="capsule-btn cancel">Cancel</button> <button type="button" id="capsule-seal-btn" class="capsule-btn seal">Seal it 🔒</button> </div> </div>`;
   document.body.appendChild(capsuleOverlayEl);
   document.getElementById("capsule-cancel-btn").addEventListener("click", closeCapsuleComposer);
   document.getElementById("capsule-seal-btn").addEventListener("click", sealTimeCapsule);
@@ -2838,7 +2838,7 @@ async function sealTimeCapsule() {
       createdAt: serverTimestamp(),
     });
     closeCapsuleComposer();
-    toast("Sealed 🔒 — it'll unlock on the date you picked.");
+    toast("Sealed 🔒, it'll unlock on the date you picked.");
   } catch (err) {
     console.error(err);
     if (err.code === "permission-denied") {
@@ -3202,7 +3202,7 @@ async function fetchCapsuleStatusForRoom(code) {
       }
     });
     if (lockedCount > 0) {
-      statusEl.textContent = `🔒 ${lockedCount} sealed — opens ${formatCapsuleDate(nextUnlock)}`;
+      statusEl.textContent = `🔒 ${lockedCount} sealed, opens ${formatCapsuleDate(nextUnlock)}`;
       statusEl.classList.add("has-capsule");
     } else {
       statusEl.textContent = "Tap to reopen";
