@@ -159,9 +159,33 @@ let favorites = getFavorites();
 
 // ---------- Helpers ----------
 function showScreen(name) {
-  Object.entries(screens).forEach(([key, node]) => {
-    node.classList.toggle("hidden", key !== name);
-  });
+  const currentScreen = Object.entries(screens).find(([key, node]) => !node.classList.contains("hidden"));
+  const nextScreen = screens[name];
+  
+  if (currentScreen && currentScreen[1] !== nextScreen) {
+    // Add entering class to next screen before showing it
+    nextScreen.classList.add("screen-entering");
+    
+    // Hide current screen
+    currentScreen[1].classList.add("hidden");
+    
+    // Show next screen
+    nextScreen.classList.remove("hidden");
+    
+    // Trigger reflow to ensure the entering class is applied
+    void nextScreen.offsetWidth;
+    
+    // Remove entering class to trigger animation
+    requestAnimationFrame(() => {
+      nextScreen.classList.remove("screen-entering");
+    });
+  } else {
+    // No current screen or same screen, just show it
+    Object.entries(screens).forEach(([key, node]) => {
+      node.classList.toggle("hidden", key !== name);
+    });
+  }
+  
   memoryToggleBtn.classList.toggle("hidden", !["game", "end"].includes(name));
   if (chatToggleBtn) chatToggleBtn.classList.toggle("chat-toggle-docked", name !== "game");
 }
@@ -303,9 +327,22 @@ function playRevealSound() {
 
 function toast(message) {
   toastEl.textContent = message;
-  toastEl.classList.remove("hidden");
+  toastEl.classList.remove("hidden", "toast-exiting");
+  
+  // Clear any existing timeout
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => toastEl.classList.add("hidden"), 3200);
+  clearTimeout(toast._exitT);
+  
+  // Set timeout to start exit animation
+  toast._t = setTimeout(() => {
+    toastEl.classList.add("toast-exiting");
+    
+    // Remove from DOM after exit animation completes
+    toast._exitT = setTimeout(() => {
+      toastEl.classList.add("hidden");
+      toastEl.classList.remove("toast-exiting");
+    }, 300);
+  }, 3200);
 }
 
 function getPlayerId() {
