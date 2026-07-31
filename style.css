@@ -1266,3 +1266,6 @@ body[data-theme="light"]::after { opacity: 0.4; }
     animation: none !important; opacity: 1 !important; transform: none !important;
   }
 }
+
+.brand h1 { font-style: normal; }
+.brand h1 em { font-style: italic; color: var(--gold); }
