@@ -1908,27 +1908,32 @@ function injectAgeGateStyles() {
   const style = document.createElement("style");
   style.id = "agegate-styles";
   style.textContent = `
-    .agegate-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.8);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1100; padding: 20px; backdrop-filter: blur(4px);
+    .agegate-overlay { 
+      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.65); 
+      display: flex; align-items: center; justify-content: center; 
+      z-index: 1100; padding: 20px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      animation: agegate-backdrop-in 0.25s ease-out;
     }
-    .agegate-modal {
-      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
-      border-radius: 16px; max-width: 380px; width: 100%;
-      padding: 30px 24px; text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-      font-family: 'Fraunces', serif;
-      animation: agegate-in 0.25s ease-out;
-    }
-    @keyframes agegate-in {
-      from { opacity: 0; transform: scale(0.96); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    .agegate-icon { font-size: 38px; margin: 0 0 8px; }
-    .agegate-title { margin: 0 0 10px; font-size: 20px; }
-    .agegate-text { font-size: 14px; line-height: 1.5; opacity: 0.85; margin: 0 0 22px; }
+    @keyframes agegate-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    
+    .agegate-modal { 
+      background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%), var(--card, #f6efe1); 
+      color: var(--on-card, #241c30); 
+      border: 1px solid var(--border-card, rgba(36,28,48,0.08));
+      border-radius: 22px; max-width: 380px; width: 100%; padding: 32px 26px; text-align: center; 
+      box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.03); 
+      font-family: 'Plus Jakarta Sans', sans-serif; 
+      animation: agegate-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); 
+    } 
+    @keyframes agegate-in { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } } 
+    
+    .agegate-icon { font-size: 42px; margin: 0 0 12px; } 
+    .agegate-title { margin: 0 0 10px; font-size: 22px; font-family: 'Fraunces', serif; font-weight: 500; letter-spacing: -0.01em; font-optical-sizing: auto; } 
+    .agegate-text { font-size: 14.5px; line-height: 1.55; opacity: 0.8; margin: 0 0 24px; font-family: 'Plus Jakarta Sans', sans-serif; } 
     .agegate-actions { display: flex; flex-direction: column; gap: 10px; }
+    
+    /* Re-use the main app's button styles for the age gate */
+    .agegate-actions .btn { margin-bottom: 0; }
   `;
   document.head.appendChild(style);
 }
@@ -3318,39 +3323,73 @@ function injectDeckBuilderStyles() {
   const style = document.createElement("style");
   style.id = "deckbuilder-styles";
   style.textContent = `
-    .deckbuilder-overlay {
-      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.75);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1050; padding: 20px; backdrop-filter: blur(3px);
+    .deckbuilder-overlay { 
+      position: fixed; inset: 0; background: rgba(20, 18, 14, 0.65); 
+      display: flex; align-items: center; justify-content: center; 
+      z-index: 1050; padding: 20px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      animation: deckbuilder-backdrop-in 0.25s ease-out;
     }
-    .deckbuilder-modal {
-      background: var(--card, #f6efe1); color: var(--on-card, #241c30);
-      border-radius: 16px; max-width: 440px; width: 100%;
-      padding: 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      max-height: 86vh; overflow-y: auto;
+    @keyframes deckbuilder-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    
+    .deckbuilder-modal { 
+      background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%), var(--card, #f6efe1); 
+      color: var(--on-card, #241c30); 
+      border: 1px solid var(--border-card, rgba(36,28,48,0.08));
+      border-radius: 22px; max-width: 440px; width: 100%; padding: 28px 24px; 
+      box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.03); 
+      font-family: 'Plus Jakarta Sans', sans-serif; max-height: 86vh; overflow-y: auto;
+      animation: deckbuilder-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
-    .deckbuilder-title { font-family: 'Fraunces', serif; font-size: 19px; margin: 0 0 6px; }
-    .deckbuilder-subtitle { font-size: 13px; opacity: 0.75; margin: 0 0 16px; line-height: 1.4; }
-    #deckbuilder-description {
-      width: 100%; border-radius: 10px; border: 1px solid rgba(0,0,0,0.15);
-      padding: 10px 12px; font-family: inherit; font-size: 15px; resize: vertical;
-      margin-bottom: 14px;
+    @keyframes deckbuilder-in { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    
+    .deckbuilder-title { font-family: 'Fraunces', serif; font-size: 22px; margin: 0 0 6px; font-weight: 500; letter-spacing: -0.01em; font-optical-sizing: auto; } 
+    .deckbuilder-subtitle { font-size: 14px; opacity: 0.75; margin: 0 0 20px; line-height: 1.5; } 
+    
+    #deckbuilder-description { 
+      width: 100%; border-radius: 12px; border: 1.5px solid var(--border-card, rgba(36,28,48,0.12)); 
+      padding: 12px 14px; font-family: inherit; font-size: 15px; resize: vertical; margin-bottom: 16px; 
+      background: var(--card-2, #fffaf1);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 1px 0 rgba(255,255,255,0.6);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .deckbuilder-count-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 6px; }
-    #deckbuilder-count { margin-bottom: 6px; }
-    .deckbuilder-preview {
-      margin-top: 14px; padding: 12px; border-radius: 10px;
-      background: rgba(0,0,0,0.05); font-size: 13px; line-height: 1.5;
+    #deckbuilder-description:focus {
+      outline: none; border-color: var(--garnet, #9c3348);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 0 0 4px rgba(156, 51, 72, 0.15);
     }
-    .deckbuilder-preview-title { margin: 0 0 6px; font-weight: 700; opacity: 0.7; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-    .deckbuilder-preview-q { margin: 3px 0; }
-    .deckbuilder-preview-more { margin: 6px 0 0; opacity: 0.6; font-style: italic; }
-    .deckbuilder-actions { display: flex; gap: 10px; margin-top: 18px; }
-    .deckbuilder-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem; }
-    .deckbuilder-btn.cancel { background: rgba(0,0,0,0.08); color: inherit; }
-    .deckbuilder-btn.generate { background: var(--gold, #c9a15a); color: #241c30; }
-    .deckbuilder-btn:disabled { opacity: 0.6; cursor: default; }
+    
+    .deckbuilder-count-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 8px; font-weight: 500; } 
+    #deckbuilder-count { margin-bottom: 8px; } 
+    
+    .deckbuilder-preview { 
+      margin-top: 16px; padding: 14px; border-radius: 12px; 
+      background: var(--card-2, #fffaf1); 
+      border: 1px solid var(--border-card, rgba(36,28,48,0.08));
+      font-size: 13.5px; line-height: 1.55; 
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    } 
+    .deckbuilder-preview-title { margin: 0 0 8px; font-weight: 600; opacity: 0.8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-family: 'IBM Plex Mono', monospace; } 
+    .deckbuilder-preview-q { margin: 4px 0; color: var(--on-card, #241c30); } 
+    .deckbuilder-preview-more { margin: 8px 0 0; opacity: 0.6; font-style: italic; } 
+    
+    .deckbuilder-actions { display: flex; gap: 12px; margin-top: 24px; } 
+    .deckbuilder-btn { 
+      flex: 1; padding: 14px; border-radius: 12px; border: none; 
+      font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.95rem; 
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.15s ease;
+    } 
+    .deckbuilder-btn:active { transform: translateY(2px) scale(0.97); }
+    .deckbuilder-btn.cancel { 
+      background: var(--card-2, #fffaf1); color: var(--on-card, #241c30); 
+      border: 1px solid var(--border-card, rgba(36,28,48,0.12));
+      box-shadow: 0 2px 0 var(--border-card), 0 4px 12px rgba(36, 28, 48, 0.05);
+    }
+    .deckbuilder-btn.cancel:active { box-shadow: 0 0 0 var(--border-card); filter: brightness(0.98); }
+    .deckbuilder-btn.generate { 
+      background: var(--gold, #c9a15a); color: #241c30; 
+      box-shadow: 0 2px 0 var(--garnet, #9c3348), 0 6px 16px rgba(156, 51, 72, 0.22);
+    }
+    .deckbuilder-btn.generate:active { box-shadow: 0 0 0 var(--garnet, #9c3348), 0 2px 6px rgba(156, 51, 72, 0.18); filter: brightness(0.97); }
+    .deckbuilder-btn:disabled { opacity: 0.85; cursor: wait; animation: btn-processing 1.8s ease-in-out infinite; box-shadow: none; transform: none; }
   `;
   document.head.appendChild(style);
 }
