@@ -1211,3 +1211,58 @@ select:-webkit-autofill {
 @media (prefers-reduced-motion: reduce) {
   #screen-landing .recent-rooms-list .recent-room-row { animation: none !important; }
 }
+
+/* =====================================================================
+   LANDING — ambient light, brand entrance & shelf refinement
+   Pure CSS. Append to the END of style.css. Builds on the hotfix.
+   ===================================================================== */
+
+/* 1. Ambient table light — a slow warm pool behind the wordmark plus a
+      soft edge vignette, so the dark top reads as a *lit* table, not a
+      flat void. (This is the single biggest "make it feel alive" win.) */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse 95% 50% at 50% 6%, var(--gold-soft), transparent 72%);
+  pointer-events: none; z-index: 0;
+  animation: lamp-breathe 9s ease-in-out infinite;
+}
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 50% 42%, transparent 56%, rgba(0,0,0,0.30) 100%);
+  pointer-events: none; z-index: 0;
+}
+body[data-theme="light"]::after { opacity: 0.4; }
+#app { position: relative; z-index: 1; }
+@keyframes lamp-breathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* 2. Brand entrance + a slightly more logo-like wordmark */
+#screen-landing .brand { animation: landing-rise 0.6s var(--ease-out) 0.05s backwards; }
+#screen-landing > .panel:not(.substep) { animation: landing-rise 0.6s var(--ease-out) 0.18s backwards; }
+@keyframes landing-rise { from { opacity: 0; transform: translateY(16px); } }
+.brand h1 { font-size: clamp(2.6rem, 12vw, 3.2rem); letter-spacing: -0.02em; }
+
+/* 3. Read "the form" and "your history" as two intentional zones —
+      a dashed shelf divider that ties back to the ticket aesthetic. */
+#screen-landing > .panel:not(.substep) > .recent-rooms-section {
+  margin: var(--space-6) 0 0;
+  padding-top: var(--space-5);
+  border-top: 1px dashed var(--border-card);
+}
+
+/* 4. Live feedback on the rows — chevron warms to garnet, the hero's
+      "Continue" nudges right. Desktop hover; harmless on touch. */
+.recent-room-status { transition: color 0.2s var(--ease-smooth), transform 0.2s var(--ease-spring); }
+#screen-landing .recent-rooms-list .recent-room-status:not(.has-capsule)::after { transition: color 0.2s var(--ease-smooth); }
+#screen-landing .recent-rooms-list .recent-room-row:hover .recent-room-status:not(.has-capsule)::after { color: var(--garnet); }
+#screen-landing .recent-rooms-list .recent-room-row:first-child:hover .recent-room-status { transform: translateX(2px); }
+
+/* 5. Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none !important; }
+  #screen-landing .brand,
+  #screen-landing > .panel:not(.substep) {
+    animation: none !important; opacity: 1 !important; transform: none !important;
+  }
+}
