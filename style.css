@@ -3,7 +3,7 @@ Concept: a deck of cards on a table. Dark mode = a table at night,
 light mode = the same table in daylight. Cards are always cream
 cardstock so they read as physical objects against the table.
 Premium polish pass — typography, spacing (8px scale), shadows,
-buttons, inputs, micro-interactions, and state transitions.
+buttons, inputs, micro-interactions, state transitions, and tactile surfaces.
 No functional changes: every existing class name, id, and selector 
 JS relies on is preserved exactly. */
 
@@ -22,12 +22,17 @@ JS relies on is preserved exactly. */
   --garnet-soft: rgba(156, 51, 72, 0.22);
   --border-card: rgba(36, 28, 48, 0.13);
   --border-table: rgba(243, 236, 217, 0.12);
+  
+  /* Layered, softer shadows */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.14), 0 10px 28px rgba(0, 0, 0, 0.24), 0 26px 52px -18px rgba(0, 0, 0, 0.30);
   --shadow-card-lg: 0 2px 4px rgba(0, 0, 0, 0.16), 0 16px 40px rgba(0, 0, 0, 0.28), 0 36px 64px -20px rgba(0, 0, 0, 0.32);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.10);
+  
   --radius: 20px;
   --radius-sm: 12px;
   --radius-lg: 26px;
+  
+  /* 8px spacing system */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -37,9 +42,13 @@ JS relies on is preserved exactly. */
   --space-7: 32px;
   --space-8: 40px;
   --space-9: 48px;
+  
+  /* Motion */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  
+  /* Typography */
   --font-display: "Fraunces", serif;
   --font-mono: "IBM Plex Mono", monospace;
   --font-ui: "Plus Jakarta Sans", sans-serif;
@@ -61,7 +70,7 @@ body[data-theme="light"] {
 
 * { box-sizing: border-box; }
 
-/* ---------- Accessibility: High-contrast focus rings ---------- */
+/* ---------- Accessibility ---------- */
 :focus-visible {
   outline: 2px solid var(--garnet);
   outline-offset: 3px;
@@ -91,11 +100,11 @@ body {
   transition: background 0.5s var(--ease-smooth), color 0.5s var(--ease-smooth);
 }
 
-/* ---------- Layout: Safe centering to prevent mobile clipping ---------- */
+/* ---------- Layout & Bug Fixes ---------- */
 #app {
   max-width: 460px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-5) var(--space-8);
+  padding: 76px var(--space-5) var(--space-8); /* 76px clears the fixed top buttons */
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -134,12 +143,12 @@ body {
 
 .hidden { display: none !important; }
 
-/* ---------- Brand ---------- */
+/* ---------- Brand & Typography Refinement (Phase 4) ---------- */
 .brand { text-align: center; }
 .kicker {
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.12em; /* Tightened */
   text-transform: uppercase;
   color: var(--gold);
   margin: 0 0 var(--space-2);
@@ -154,6 +163,7 @@ body {
   color: var(--on-table);
   margin: 0 0 var(--space-2);
   line-height: 1.1;
+  font-optical-sizing: auto; /* Phase 4 */
 }
 .tagline {
   color: var(--on-table-soft);
@@ -162,19 +172,23 @@ body {
   letter-spacing: 0.005em;
 }
 
-/* ---------- Cream surfaces (panel / ticket / cards) ---------- */
-.panel, .ticket, .question-card {
-  background: var(--card);
+/* ---------- Cream surfaces / Cardstock Metaphor (Phase 4) ---------- */
+.panel, .ticket, .question-card, .memory-entry, .tally-row, .answer-bubble {
+  background: 
+    linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%),
+    var(--card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  box-shadow: 
+    var(--shadow-card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
   color: var(--on-card);
   transition: box-shadow 0.35s var(--ease-smooth), transform 0.35s var(--ease-smooth);
 }
 .panel { padding: var(--space-7) var(--space-6); }
 .end-panel { text-align: center; }
 
-/* Phase 3: End screen heading reveal */
 .end-heading {
   font-family: var(--font-display);
   font-weight: 500;
@@ -185,6 +199,7 @@ body {
   opacity: 0;
   transform: translateY(12px);
   animation: heading-reveal 0.6s var(--ease-out) 0.2s forwards;
+  font-optical-sizing: auto;
 }
 .end-panel .btn {
   opacity: 0;
@@ -211,8 +226,8 @@ body {
   font-weight: 500;
 }
 
-/* ---------- Inputs ---------- */
-input[type="text"], textarea {
+/* ---------- Inputs (Phase 4: Pressed-in tactile feel) ---------- */
+input[type="text"], textarea, .select-input {
   width: 100%;
   background: var(--card-2);
   border: 1.5px solid var(--border-card);
@@ -223,13 +238,13 @@ input[type="text"], textarea {
   font-size: 1rem;
   margin-bottom: var(--space-4);
   caret-color: var(--garnet);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 1px 0 rgba(255,255,255,0.6);
   transition: border-color 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth);
 }
-input[type="text"]:focus, textarea:focus {
+input[type="text"]:focus, textarea:focus, .select-input:focus {
   outline: none;
   border-color: var(--garnet);
-  box-shadow: 0 0 0 4px var(--garnet-soft), 0 2px 10px rgba(0,0,0,0.08);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03), 0 0 0 4px var(--garnet-soft), 0 2px 10px rgba(0,0,0,0.08);
 }
 input[type="text"]:hover:not(:focus), textarea:hover:not(:focus) {
   border-color: var(--on-card-soft);
@@ -329,7 +344,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 }
 .toggle-row input[type="checkbox"]:active { transform: scale(0.85); }
 
-/* ---------- Category chips ---------- */
+/* ---------- Category chips (Phase 4: Tactile) ---------- */
 .chip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); margin-bottom: var(--space-5); }
 .chip:first-child { grid-column: 1 / -1; }
 .chip {
@@ -350,6 +365,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   text-align: center;
   min-height: 46px;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.6);
   transition: background 0.2s var(--ease-smooth), color 0.2s var(--ease-smooth), transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth), border-color 0.2s var(--ease-smooth);
 }
 .chip:active { transform: scale(0.94); }
@@ -358,7 +374,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   border-color: var(--chip-color, var(--gold));
   color: #fff9ef;
   font-weight: 600;
-  box-shadow: 0 3px 10px -2px var(--chip-color, var(--gold));
+  box-shadow: 0 4px 12px -2px var(--chip-color, var(--gold)), inset 0 -2px 6px rgba(0,0,0,0.12);
   animation: chip-pop 0.35s var(--ease-spring);
 }
 @keyframes chip-pop {
@@ -381,7 +397,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .room-code {
   font-family: var(--font-mono);
   font-size: 2.1rem;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.1em;
   font-weight: 600;
   color: var(--garnet);
   margin: var(--space-3) 0 var(--space-5);
@@ -429,9 +445,9 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   white-space: nowrap;
   transition: background 0.2s ease;
 }
-.progress-text { font-family: var(--font-mono); font-size: 0.72rem; color: var(--on-table-soft); white-space: nowrap; letter-spacing: 0.02em; }
+.progress-text { font-family: var(--font-mono); font-size: 0.72rem; color: var(--on-table-soft); white-space: nowrap; letter-spacing: 0.06em; }
 
-/* ---------- The deck ---------- */
+/* ---------- The deck (Phase 4: Refined Ghost Cards) ---------- */
 .deck-wrap { position: relative; margin: var(--space-1) 0 var(--space-1); }
 .ghost-card {
   position: absolute;
@@ -439,9 +455,20 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   background: var(--card);
   border-radius: var(--radius);
   border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-soft);
 }
-.ghost-1 { transform: rotate(-4deg) translateY(6px); opacity: 0.45; z-index: 1; }
-.ghost-2 { transform: rotate(3deg) translateY(3px); opacity: 0.28; z-index: 2; }
+.ghost-1 { 
+  transform: rotate(-3.5deg) translateY(10px) scale(0.96); 
+  opacity: 0.5; 
+  z-index: 1; 
+  filter: blur(1.5px); 
+}
+.ghost-2 { 
+  transform: rotate(2.5deg) translateY(5px) scale(0.98); 
+  opacity: 0.3; 
+  z-index: 2; 
+  filter: blur(0.8px); 
+}
 .question-card {
   position: relative;
   z-index: 3;
@@ -450,7 +477,11 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   display: flex;
   flex-direction: column;
   border-top: 4px solid var(--accent, var(--gold));
-  box-shadow: var(--shadow-card), 0 0 30px -8px var(--accent, transparent);
+  box-shadow: 
+    var(--shadow-card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+    0 0 30px -8px var(--accent, transparent);
   transition: border-color 0.5s var(--ease-smooth), box-shadow 0.5s var(--ease-smooth);
 }
 .card-index { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); }
@@ -472,7 +503,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--on-card-soft);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   opacity: 0.85;
 }
 .question-text {
@@ -486,6 +517,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   flex-grow: 1;
   display: flex;
   align-items: center;
+  font-optical-sizing: auto;
 }
 .question-card.animate { animation: draw-in 0.55s var(--ease-out); }
 @keyframes draw-in {
@@ -560,10 +592,6 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .answer-bubble {
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-sm);
-  background: var(--card);
-  border: 1px solid var(--border-card);
-  color: var(--on-card);
-  box-shadow: var(--shadow-soft);
 }
 .answer-bubble.me { border-left: 3px solid var(--gold); }
 .answer-bubble.them { border-left: 3px solid var(--garnet); }
@@ -587,6 +615,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   opacity: 0;
   transform: translateY(6px);
   animation: quote-reveal 0.5s var(--ease-out) 0.6s forwards;
+  font-optical-sizing: auto;
 }
 .reveal.hidden .reveal-quote {
   animation: none;
@@ -627,7 +656,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   justify-content: center;
 }
 .theme-toggle { top: 16px; right: 16px; }
-.sound-toggle { top: 66px; right: 16px; } 
+.sound-toggle { top: 16px; right: 68px; } /* Bug fix: aligned horizontally */
 .memory-toggle { top: 16px; left: 16px; }
 .theme-toggle:active, .memory-toggle:active { transform: scale(0.9); }
 
@@ -661,14 +690,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 /* ---------- Select / hint / pack panel ---------- */
 .select-input {
   width: 100%;
-  background: var(--card-2);
-  border: 1.5px solid var(--border-card);
-  border-radius: var(--radius-sm);
-  padding: var(--space-4);
   padding-right: calc(var(--space-4) * 2 + 18px);
-  color: var(--on-card);
-  font-family: var(--font-ui);
-  font-size: 1rem;
   margin-bottom: var(--space-2);
   appearance: none;
   -webkit-appearance: none;
@@ -676,12 +698,6 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   background-repeat: no-repeat;
   background-position: right var(--space-4) center;
   background-size: 14px 9px;
-  transition: border-color 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth);
-}
-.select-input:focus {
-  outline: none;
-  border-color: var(--garnet);
-  box-shadow: 0 0 0 4px var(--garnet-soft);
 }
 .hint-text { font-size: 0.78rem; color: var(--on-card-soft); margin: 0 0 var(--space-4); line-height: 1.5; }
 .pack-panel {
@@ -710,10 +726,11 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   font-size: 0.98rem;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.6);
   transition: transform 0.25s var(--ease-spring), background 0.2s ease, border-color 0.2s ease;
 }
 .vote-option:active { transform: scale(0.98); }
-.vote-option.picked { background: var(--gold); border-color: var(--gold); color: #241c30; }
+.vote-option.picked { background: var(--gold); border-color: var(--gold); color: #241c30; box-shadow: 0 4px 12px -2px var(--gold), inset 0 -2px 6px rgba(0,0,0,0.12); }
 
 .reveal-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .reveal-list .answer-bubble.me { border-left: 3px solid var(--gold); }
@@ -723,10 +740,6 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .tally-row {
   padding: var(--space-4);
   border-radius: var(--radius-sm);
-  background: var(--card);
-  border: 1px solid var(--border-card);
-  color: var(--on-card);
-  box-shadow: var(--shadow-soft);
 }
 .tally-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; }
 .tally-bar-track { height: 8px; border-radius: 999px; background: var(--border-card); margin-top: var(--space-2); overflow: hidden; }
@@ -740,12 +753,8 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 /* ---------- Memory Book ---------- */
 .memory-list { display: flex; flex-direction: column; gap: var(--space-4); max-height: 68vh; overflow-y: auto; padding-bottom: var(--space-1); }
 .memory-entry {
-  background: var(--card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-sm);
   padding: var(--space-4);
-  color: var(--on-card);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-sm);
 }
 .memory-entry .index-number { display: block; margin-bottom: var(--space-2); }
 .memory-q {
@@ -754,6 +763,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   font-size: 1.05rem;
   line-height: 1.45;
   margin: 0 0 var(--space-3);
+  font-optical-sizing: auto;
 }
 .memory-a { font-size: 0.9rem; line-height: 1.5; margin: var(--space-1) 0; }
 .memory-a b {
@@ -761,7 +771,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   font-family: var(--font-mono);
   font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--on-card-soft);
   font-weight: 600;
   margin-bottom: 2px;
@@ -854,10 +864,10 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
   100% { filter: brightness(1); }
 }
 
-/* ---------- Phase 3 Keyframes ---------- */
+/* ---------- Phase 3 & 4 Keyframes ---------- */
 @keyframes ticket-breathe {
-  0%, 100% { transform: scale(1); box-shadow: var(--shadow-card); }
-  50% { transform: scale(1.008); box-shadow: var(--shadow-card-lg); }
+  0%, 100% { transform: scale(1); box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.03); }
+  50% { transform: scale(1.008); box-shadow: var(--shadow-card-lg), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.03); }
 }
 @keyframes heading-reveal {
   to { opacity: 1; transform: translateY(0); }
@@ -891,24 +901,3 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
     transform: none !important;
   }
   }
-
-/* ========== BUG FIX: Top-Bar & Button Overlaps ========== */
-
-/* 1. Align top-right toggles horizontally to create a clean "system row" */
-.sound-toggle { 
-  top: 16px; 
-  right: 68px; /* Moves next to theme toggle (16px + 44px width + 8px gap) */
-} 
-
-/* 2. Push all app content down to clear the fixed top buttons */
-/* Buttons end at 60px. 76px gives a perfect 16px breathing gap. */
-#app {
-  padding-top: 76px; 
-}
-
-/* 3. Keep desktop centering intact while respecting the new top padding */
-@media (min-width: 640px) {
-  #app {
-    justify-content: center; 
-  }
-}
