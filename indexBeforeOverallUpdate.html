@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="Between Us — a card deck for real conversations.">
+  <meta name="theme-color" content="#14131f">
+  
+  <!-- PWA & Apple Mobile Meta (Fixed paths to match your manifest.json) -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Between Us">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <title>Between Us</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+  <!-- Floating Controls -->
+  <button id="memory-toggle" class="memory-toggle hidden" aria-label="Open Memory Book">📖</button>
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀️</button>
+  <button id="sound-toggle" class="sound-toggle" aria-label="Toggle sound">🔊</button>
+
+  <main id="app">
+    <!-- Landing Screen -->
+    <section id="screen-landing" class="screen">
+      <div class="brand">
+        <p class="kicker">A card deck for real conversations</p>
+        <h1>Between <em>Us</em></h1>
+        <p class="tagline">Good conversations don't always happen by themselves.</p>
+      </div>
+      
+      <div class="panel">
+        <label class="field-label" for="name-input">Your name</label>
+        <input type="text" id="name-input" placeholder="e.g. Alex" autocomplete="given-name" maxlength="20">
+        
+        <div id="mode-buttons" class="mode-buttons">
+          <button id="show-create-btn" class="btn btn-primary">Start a Conversation</button>
+          <button id="show-join-btn" class="btn btn-secondary">Join a Conversation</button>
+        </div>
+      </div>
+
+      <!-- Create Step -->
+      <div id="create-step" class="panel substep hidden">
+        <label class="field-label">Pick a category</label>
+        <div id="category-chips" class="chip-grid"></div>
+        
+        <div id="pack-panel" class="pack-panel hidden">
+          <label class="field-label" for="pack-code-input">Pack code</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="pack-code-input" placeholder="PACK-XXXXX" style="margin-bottom:0;">
+            <button id="load-pack-btn" class="btn btn-secondary" style="width:auto;margin-bottom:0;">Load Pack</button>
+          </div>
+          <p id="pack-status" class="pack-status"></p>
+          <button id="open-pack-creator-btn" class="leave-link pack-creator-link">✏️ Write your own pack →</button>
+        </div>
+
+        <label class="toggle-row">
+          <input type="checkbox" id="conversation-mode-toggle">
+          🌙 Conversation Mode — start light, get deeper as you go
+        </label>
+
+        <label class="field-label" for="max-players-select">Players</label>
+        <select id="max-players-select" class="select-input">
+          <option value="2">2 — Duo (classic)</option>
+          <option value="3">3 — Group</option>
+          <option value="4">4 — Group</option>
+          <option value="5">5 — Group</option>
+          <option value="6">6 — Group</option>
+          <option value="7">7 — Group</option>
+          <option value="8">8 — Group</option>
+          <option value="9">9 — Group</option>
+          <option value="10">10 — Group</option>
+        </select>
+        <p class="hint-text">3–10 players unlocks Group Mode. Pick 🗳️ Vote Prompts with 3+ players for a voting game.</p>
+
+        <label class="field-label" for="question-count-select">How many questions?</label>
+        <select id="question-count-select" class="select-input">
+          <option value="10">10 — Quick round</option>
+          <option value="20" selected>20 — Standard</option>
+          <option value="30">30 — Longer sit-down</option>
+          <option value="50">50 — Deep dive</option>
+          <option value="all">All — Every question in the deck</option>
+        </select>
+        <p class="hint-text">You can always shuffle a new deck when you finish.</p>
+
+        <label class="field-label" for="custom-code-input">Custom room code (optional)</label>
+        <input type="text" id="custom-code-input" placeholder="e.g. FRIDAY-NIGHT" maxlength="20">
+
+        <button id="create-room-btn" class="btn btn-primary">Start Conversation</button>
+      </div>
+
+      <!-- Join Step -->
+      <div id="join-step" class="panel substep hidden">
+        <label class="field-label" for="join-code-input">Room code</label>
+        <input type="text" id="join-code-input" placeholder="ABCDE" maxlength="10" style="text-transform:uppercase;">
+        <button id="join-room-btn" class="btn btn-primary">Join Conversation</button>
+      </div>
+
+      <div id="config-warning" class="config-warning hidden">
+        ⚠️ Firebase isn't connected yet. Open <code>firebase-config.js</code> and follow <code>README.md</code> to hook up your free Firebase project.
+      </div>
+    </section>
+
+    <!-- Pack Creator Screen -->
+    <section id="screen-pack-creator" class="screen hidden">
+      <div class="panel">
+        <h2 class="end-heading">Write a question pack</h2>
+        <label class="field-label" for="pack-title-input">Pack title</label>
+        <input type="text" id="pack-title-input" placeholder="e.g. Late Night Talks">
+        <label class="field-label" for="pack-questions-input">Questions (one per line, at least 3)</label>
+        <textarea id="pack-questions-input" rows="8" placeholder="What's something you've never told me?&#10;Describe your perfect Sunday..."></textarea>
+        <button id="save-pack-btn" class="btn btn-primary">Save Pack</button>
+        <button id="pack-creator-back-btn" class="btn btn-secondary">← Back</button>
+
+        <!-- FIX: This panel + its 3 buttons were missing from the HTML.
+             app.js references them at the TOP LEVEL of the script
+             (packSavedPanelEl, packCodeDisplayEl, packCopyLinkBtn, packUseNowBtn),
+             so when they didn't exist, .addEventListener() on null threw
+             immediately on page load and silently killed the entire script. -->
+        <div id="pack-saved-panel" class="panel substep hidden" style="margin-top:16px;">
+          <p class="field-label">Pack saved! Share this code:</p>
+          <div id="pack-code-display" class="room-code"></div>
+          <div class="share-row">
+            <button id="pack-copy-link-btn" class="btn btn-secondary">Copy Link</button>
+            <button id="pack-use-now-btn" class="btn btn-primary">Use This Pack Now</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Waiting Screen -->
+    <section id="screen-waiting" class="screen hidden">
+      <div class="ticket">
+        <p class="field-label">Your room code</p>
+        <div id="room-code-display" class="room-code">-----</div>
+        <div class="share-row">
+          <button id="copy-link-btn" class="btn btn-secondary">Copy Link</button>
+          <button id="whatsapp-btn" class="btn btn-secondary">Share on WhatsApp</button>
+        </div>
+      </div>
+      <p id="waiting-players" class="waiting-text"></p>
+      <p id="waiting-hint" class="waiting-text">Waiting for your person to join<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+      <button id="start-game-btn" class="btn btn-primary hidden">Start Game</button>
+      <button id="cancel-waiting-btn" class="btn btn-secondary">Cancel and go back</button>
+    </section>
+
+    <!-- Game Screen -->
+    <section id="screen-game" class="screen hidden">
+      <div class="game-topbar">
+        <div class="topbar-left">
+          <div id="players-row" class="players-row"></div>
+          <button id="leave-room-btn" class="leave-link">Leave room</button>
+        </div>
+        <span id="progress-text" class="progress-text"></span>
+      </div>
+
+      <div class="deck-wrap">
+        <div class="ghost-card ghost-1"></div>
+        <div class="ghost-card ghost-2"></div>
+        <div id="question-card" class="question-card">
+          <div class="card-index">
+            <span id="category-tag" class="stamp"></span>
+            <span id="question-number" class="index-number"></span>
+          </div>
+          <p id="question-text" class="question-text"></p>
+          <button id="favorite-btn" class="favorite-btn" aria-label="Favorite this question">♡</button>
+        </div>
+      </div>
+
+      <form id="answer-form" class="answer-form">
+        <textarea id="answer-input" rows="2" placeholder="Your answer" maxlength="1000"></textarea>
+        <button type="submit" class="btn btn-primary">Submit Answer</button>
+        <button type="button" id="skip-btn" class="btn btn-secondary">Skip This One</button>
+      </form>
+
+      <!-- FIX: Group Mode "Vote Prompts" UI — referenced at top level of app.js
+           (voteFormEl, voteButtonsEl, voteSkipBtn) via el("vote-form") etc.
+           Missing element -> null -> .addEventListener crash on load. -->
+      <form id="vote-form" class="vote-form hidden">
+        <div id="vote-buttons" class="vote-buttons"></div>
+        <button type="button" id="vote-skip-btn" class="btn btn-secondary">Skip This Vote</button>
+      </form>
+
+      <p id="typing-indicator" class="typing-indicator hidden" aria-live="polite"></p>
+      <p id="waiting-for-other" class="waiting-text hidden" aria-live="polite"></p>
+
+      <div id="reveal" class="reveal hidden">
+        <div id="reveal-list" class="reveal-list"></div>
+        <p id="reveal-quote" class="reveal-quote"></p>
+      </div>
+
+      <button id="export-keepsake-btn" class="btn btn-secondary hidden">Save as Image 📸</button>
+      <button id="next-btn" class="btn btn-primary next-btn hidden">Draw Next Card →</button>
+    </section>
+
+    <!-- End Screen -->
+    <section id="screen-end" class="screen hidden">
+      <div class="panel end-panel">
+        <h2 class="end-heading">Deck complete</h2>
+        <p class="tagline"><span id="end-count">0</span> questions, answered together</p>
+        <p class="waiting-text">That's a lot of conversation for one sitting.</p>
+        <button id="play-again-btn" class="btn btn-primary">Shuffle a New Deck</button>
+        <button id="export-keepsake-btn-end" class="btn btn-secondary">Save as Image 📸</button>
+      </div>
+    </section>
+
+    <!-- Memory Book Screen -->
+    <section id="screen-memory" class="screen hidden">
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 class="end-heading" style="margin:0;">Memory Book</h2>
+          <button id="memory-back-btn" class="btn btn-secondary" style="width:auto;margin:0;padding:8px 16px;">Back</button>
+        </div>
+        <div id="memory-list" class="memory-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <div id="confetti-layer" class="confetti-layer"></div>
+
+  <!-- html2canvas for keepsake export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
