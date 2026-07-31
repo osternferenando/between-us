@@ -163,24 +163,14 @@ function showScreen(name) {
   const nextScreen = screens[name];
   
   if (currentScreen && currentScreen[1] !== nextScreen) {
-    // Add entering class to next screen before showing it
     nextScreen.classList.add("screen-entering");
-    
-    // Hide current screen
     currentScreen[1].classList.add("hidden");
-    
-    // Show next screen
     nextScreen.classList.remove("hidden");
-    
-    // Trigger reflow to ensure the entering class is applied
-    void nextScreen.offsetWidth;
-    
-    // Remove entering class to trigger animation
+    void nextScreen.offsetWidth; // Force reflow
     requestAnimationFrame(() => {
       nextScreen.classList.remove("screen-entering");
     });
   } else {
-    // No current screen or same screen, just show it
     Object.entries(screens).forEach(([key, node]) => {
       node.classList.toggle("hidden", key !== name);
     });
@@ -329,15 +319,11 @@ function toast(message) {
   toastEl.textContent = message;
   toastEl.classList.remove("hidden", "toast-exiting");
   
-  // Clear any existing timeout
   clearTimeout(toast._t);
   clearTimeout(toast._exitT);
   
-  // Set timeout to start exit animation
   toast._t = setTimeout(() => {
     toastEl.classList.add("toast-exiting");
-    
-    // Remove from DOM after exit animation completes
     toast._exitT = setTimeout(() => {
       toastEl.classList.add("hidden");
       toastEl.classList.remove("toast-exiting");
@@ -1594,41 +1580,35 @@ async function generateJournal(category, answers, duration, sessionStats) {
 // Display journal in a beautiful modal
 function displayJournal(journalData) {
   if (!journalData) return;
-
   const modal = document.createElement("div");
   modal.className = "journal-modal";
   modal.innerHTML = `
     <div class="journal-container">
       <div class="journal-header">
         <h2>✨ Your Moment</h2>
-        <button class="journal-close" onclick="this.closest('.journal-modal').remove()">×</button>
+        <button class="journal-close" onclick="this.closest('.journal-modal').remove()" aria-label="Close">×</button>
       </div>
-      
       <div class="journal-content">
-        <div class="journal-category">${journalData.category}</div>
-        <p class="journal-text">${journalData.journalEntry}</p>
+        <div class="journal-category">${escapeHtml(journalData.category)}</div>
+        <p class="journal-text">${escapeHtml(journalData.journalEntry)}</p>
         <div class="journal-meta">
           <span>${journalData.duration} minutes</span>
           <span>${new Date(journalData.timestamp).toLocaleDateString()}</span>
         </div>
       </div>
-      
       <div class="journal-actions">
-        <button class="journal-btn" onclick="saveJournal('${journalData.category}', '${journalData.timestamp}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">
-          💾 Save Entry
-        </button>
-        <button class="journal-btn" onclick="exportJournal('${journalData.category}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">
-          📥 Export
-        </button>
-        <button class="journal-btn" onclick="this.closest('.journal-modal').remove()">
-          Close
-        </button>
+        <button class="journal-btn primary" onclick="saveJournal('${journalData.category}', '${journalData.timestamp}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">💾 Save Entry</button>
+        <button class="journal-btn secondary" onclick="exportJournal('${journalData.category}', '${journalData.journalEntry.replace(/'/g, "\\'")}')">📥 Export</button>
+        <button class="journal-btn secondary" onclick="this.closest('.journal-modal').remove()">Close</button>
       </div>
     </div>
   `;
-
   document.body.appendChild(modal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
 }
+
+// Journal styles are now in style.css using CSS variables.
+// No more hardcoded purple/white injection.
 
 // Save journal to Firebase
 async function saveJournal(category, timestamp, entry) {
@@ -2199,6 +2179,10 @@ function updateChatOnlineStatus(data) {
 function closeChatOverlay() {
   if (!chatOverlayOpen) return;
   chatOverlayOpen = false;
+  
+  // Desktop sidebar mode
+  document.body.classList.remove("chat-open-desktop");
+  
   if (!chatOverlayEl) return;
   cancelBubbleLongPress();
   closeChatContextMenu();
@@ -2207,10 +2191,17 @@ function closeChatOverlay() {
     chatOverlayEl.classList.add("hidden");
     chatOverlayEl.classList.remove("chat-closing");
   };
+  
+  // Skip animation on desktop
+  if (window.innerWidth >= 900) {
+    finishClose();
+    return;
+  }
+  
   chatOverlayEl.classList.add("chat-closing");
   if (panel) {
     panel.addEventListener("animationend", finishClose, { once: true });
-    setTimeout(finishClose, 300); // fallback if the animation is skipped (e.g. reduced motion)
+    setTimeout(finishClose, 300);
   } else {
     finishClose();
   }
