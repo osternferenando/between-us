@@ -1047,3 +1047,167 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .journal-btn.secondary { background: var(--card-2); color: var(--on-card); border: 1px solid var(--border-card); box-shadow: 0 2px 0 var(--border-card), 0 4px 12px rgba(36, 28, 48, 0.05); }
 .journal-btn.secondary:active { box-shadow: 0 0 0 var(--border-card); filter: brightness(0.98); }
 
+/* =====================================================================
+   LANDING HOTFIX — IA, autofill & the recent-rooms wall
+   CSS-only. No JS, no logic changes. Append to the END of style.css.
+   ===================================================================== */
+
+/* 1. Autofill — strip the pale-blue the browser paints over the cream.
+      Covers the name field, the join code, pack codes, all of them. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--on-card);
+  caret-color: var(--garnet);
+  -webkit-box-shadow: 0 0 0 1000px var(--card-2) inset;
+  box-shadow: 0 0 0 1000px var(--card-2) inset;
+  transition: background-color 99999s ease-in-out 0s;
+  font-family: var(--font-ui);
+  border-radius: var(--radius-sm);
+}
+
+/* 2. Reorder WITHOUT touching JS — turn the name panel into a flex column
+      and lift the primary CTAs above the history list. */
+#screen-landing > .panel:not(.substep) {
+  display: flex;
+  flex-direction: column;
+}
+#screen-landing > .panel:not(.substep) > .mode-buttons { order: 2; }
+#screen-landing > .panel:not(.substep) > .recent-rooms-section {
+  order: 3;
+  margin: var(--space-5) 0 0;   /* breathing room beneath the CTAs */
+}
+
+/* 3. The moment a form opens, the history just gets in the way —
+      tuck it away with :has(). Falls back gracefully on old browsers. */
+#screen-landing:has(#create-step:not(.hidden)) .recent-rooms-section,
+#screen-landing:has(#join-step:not(.hidden)) .recent-rooms-section {
+  display: none;
+}
+
+/* 4. Redesign the wall → one "continue" hero card + a quiet native list. */
+#screen-landing .recent-rooms-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
+  margin: 0 0 var(--space-3);
+}
+#screen-landing .recent-rooms-list { gap: 0; }   /* hairline dividers, not gaps */
+
+/* status column — keep long capsule strings from breaking the row */
+#screen-landing .recent-rooms-list .recent-room-status {
+  max-width: 50%;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.35;
+}
+
+/* the most recent room = a tactile "pick up where you left off" card */
+#screen-landing .recent-rooms-list .recent-room-row:first-child {
+  border: 1px solid var(--border-card);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, var(--gold-soft), transparent 72%),
+    var(--card-2);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255,255,255,0.6);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+#screen-landing .recent-rooms-list .recent-room-row:first-child .recent-room-code {
+  font-size: 1.02rem;
+}
+
+/* everything below = flat rows separated by hairlines */
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child) {
+  border: none;
+  border-top: 1px solid var(--border-card);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: var(--space-3) var(--space-1);
+}
+#screen-landing .recent-rooms-list .recent-room-row:first-child + .recent-room-row {
+  border-top: none;   /* open top — the hero's gap is the separator */
+}
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child):last-child {
+  border-bottom: 1px solid var(--border-card);
+}
+
+/* compact single-line layout for the list rows */
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child) .recent-room-main {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child) .recent-room-code {
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child) .recent-room-code::after {
+  content: "·";
+  margin-left: var(--space-2);
+  color: var(--on-card-soft);
+  opacity: 0.5;
+}
+#screen-landing .recent-rooms-list .recent-room-row:not(:first-child) .recent-room-category {
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 5. Kill the repeated "Tap to reopen" — show a quiet › instead,
+      and a real "Continue ›" on the hero. Capsule rows keep their 🔒 text. */
+#screen-landing .recent-rooms-list .recent-room-status:not(.has-capsule) {
+  font-size: 0;   /* hides the words; screen readers still read them */
+}
+#screen-landing .recent-rooms-list .recent-room-status:not(.has-capsule)::after {
+  content: "\203A";   /* › */
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--on-card-soft);
+  font-family: var(--font-ui);
+}
+#screen-landing .recent-rooms-list .recent-room-row:first-child .recent-room-status:not(.has-capsule)::after {
+  content: "Continue \203A";
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--garnet);
+}
+#screen-landing .recent-rooms-list .recent-room-status.has-capsule { opacity: 1; }
+
+/* 6. Make the rows feel alive — hover lift + a staggered rise-in. */
+#screen-landing .recent-rooms-list .recent-room-row {
+  transition: transform 0.2s var(--ease-spring), background 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth);
+  animation: recent-rise 0.45s var(--ease-out) backwards;
+}
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(1) { animation-delay: 0.04s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(2) { animation-delay: 0.09s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(3) { animation-delay: 0.14s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(4) { animation-delay: 0.19s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(5) { animation-delay: 0.24s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(6) { animation-delay: 0.29s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(7) { animation-delay: 0.34s; }
+#screen-landing .recent-rooms-list .recent-room-row:nth-child(8) { animation-delay: 0.39s; }
+@keyframes recent-rise { from { opacity: 0; transform: translateY(8px); } }
+
+@media (hover: hover) and (pointer: fine) {
+  #screen-landing .recent-rooms-list .recent-room-row:hover { transform: translateY(-1px); }
+  #screen-landing .recent-rooms-list .recent-room-row:first-child:hover {
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  #screen-landing .recent-rooms-list .recent-room-row:not(:first-child):hover {
+    background: var(--gold-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #screen-landing .recent-rooms-list .recent-room-row { animation: none !important; }
+}
