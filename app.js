@@ -2419,21 +2419,23 @@ function positionContextMenu(menu, bubbleEl) {
   const panelEl = chatOverlayEl.querySelector(".chat-panel");
   const panelRect = panelEl.getBoundingClientRect();
   const bubbleRect = bubbleEl.getBoundingClientRect();
-
   menu.classList.remove("hidden", "visible", "flipped");
   menu.style.visibility = "hidden";
-  const menuRect = menu.getBoundingClientRect();
+  // Measure TRUE layout size. offsetWidth/Height ignore the CSS scale(0.85)
+  // entrance transform, which getBoundingClientRect does NOT — that mismatch
+  // is exactly what let the menu overflow the right edge on right-aligned
+  // (your) bubbles. Pure positioning fix; no logic changes.
+  const menuW = menu.offsetWidth;
+  const menuH = menu.offsetHeight;
   menu.style.visibility = "";
-
-  let top = bubbleRect.top - menuRect.height - 10;
+  let top = bubbleRect.top - menuH - 10;
   let flipped = false;
   if (top < panelRect.top + 8) {
     top = bubbleRect.bottom + 10;
     flipped = true;
   }
-  let left = bubbleRect.left + bubbleRect.width / 2 - menuRect.width / 2;
-  left = Math.min(Math.max(left, panelRect.left + 8), panelRect.right - menuRect.width - 8);
-
+  let left = bubbleRect.left + bubbleRect.width / 2 - menuW / 2;
+  left = Math.min(Math.max(left, panelRect.left + 8), panelRect.right - menuW - 8);
   menu.style.top = `${top}px`;
   menu.style.left = `${left}px`;
   menu.classList.toggle("flipped", flipped);
