@@ -1269,3 +1269,157 @@ body[data-theme="light"]::after { opacity: 0.4; }
 
 .brand h1 { font-style: normal; }
 .brand h1 em { font-style: italic; color: var(--gold); }
+
+/* =====================================================================
+   IN-GAME POLISH — header geometry, neon taming, chat FAB, reveal chips
+   Pure CSS. Append to the END of style.css (must stay last).
+   ===================================================================== */
+
+/* 1. Tame the accent glow — colour becomes a whisper, not a light tube.
+      Two declarations: the first is the safe fallback (no accent bloom);
+      the second adds a tight, low-alpha tinted halo only where the
+      browser understands color-mix(). The crisp 4px top bar stays as the
+      real colour cue. */
+.question-card {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+}
+.question-card {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+    0 0 26px -16px color-mix(in srgb, var(--accent, var(--gold)) 55%, transparent);
+}
+/* The progress knob was glowing too — make it a crisp bead, not a bloom. */
+.progress-fill::after {
+  width: 8px; height: 8px;
+  filter: blur(1px) brightness(1.12);
+  opacity: 0.85;
+}
+
+/* 2. Re-flow the header with a grid so the bar owns a full-width row and
+      the player tags get the room to sit on one line. display:contents on
+      .topbar-left promotes its children into the grid without touching JS. */
+.game-topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "players progress"
+    "bar     bar"
+    "leave   leave";
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
+  align-items: center;
+}
+.topbar-left { display: contents; }
+.players-row   { grid-area: players; }
+.progress-text { grid-area: progress; margin: 0; }
+.progress-track{ grid-area: bar; margin-top: 0; }
+.leave-link    { grid-area: leave; justify-self: start; }
+
+/* 3. Move the chat FAB out of the card and into the top-right cluster.
+      The id gives us the specificity to beat the runtime-injected
+      !important rules that pin it to mid-screen. */
+.theme-toggle { top: 16px; right: 16px; }
+.sound-toggle { top: 16px; right: 68px; }
+#chat-toggle-btn.chat-toggle {
+  top: 16px !important;
+  right: 120px !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: 44px !important;
+  height: 44px !important;
+  transform: none !important;
+}
+#chat-toggle-btn.chat-toggle:active { transform: scale(0.9) !important; }
+
+/* 4a. Real presence dots instead of emoji — the offline white circle in
+       your shot was reading as a blank avatar. font-size:0 hides the glyph;
+       ::after draws a clean ringed dot. CSS-only, no markup change. */
+.player-tag { display: inline-flex; align-items: center; gap: 6px; }
+.player-tag .dot-online,
+.player-tag .dot-offline { font-size: 0; line-height: 0; display: inline-flex; }
+.player-tag .dot-online::after,
+.player-tag .dot-offline::after {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; display: block;
+}
+.player-tag .dot-online::after  { background: #3fbf6f; box-shadow: 0 0 0 3px rgba(63, 191, 111, 0.18); }
+.player-tag .dot-offline::after { background: #8a8494; box-shadow: 0 0 0 3px rgba(138, 132, 148, 0.18); }
+
+/* 4b. Reaction chips belong to the cream card, not the dark table.
+       Soft on-card pills that warm to gold when you've reacted. */
+.reaction-btn {
+  background: var(--card-2);
+  border: 1px solid var(--border-card);
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 1.05rem;
+  box-shadow: var(--shadow-soft);
+}
+.reaction-btn.active {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  box-shadow: 0 2px 8px -2px var(--gold);
+}
+@media (hover: hover) and (pointer: fine) {
+  .reaction-btn:hover { transform: scale(1.08); }
+}
+
+/* 4c. The waiting frame — a quiet "their turn" pill with a breathing bead,
+       plus a slow shadow-breath on the card so the silence feels alive
+       rather than empty. Shadow only, never movement, so it stays calm. */
+#waiting-for-other:not(.hidden) {
+  align-self: center;
+  margin-top: var(--space-5);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  background: var(--table-2);
+  border: 1px solid var(--border-table);
+  color: var(--on-table-soft);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+#waiting-for-other:not(.hidden)::before {
+  content: "";
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex-shrink: 0;
+  animation: wait-bead 1.7s ease-in-out infinite;
+}
+@keyframes wait-bead {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1); }
+}
+#screen-game:has(#waiting-for-other:not(.hidden)) .question-card {
+  animation: card-wait 3.8s ease-in-out infinite;
+}
+@keyframes card-wait {
+  0%, 100% {
+    box-shadow:
+      var(--shadow-card),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+      0 0 26px -16px color-mix(in srgb, var(--accent, var(--gold)) 50%, transparent);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-card-lg),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+      0 0 34px -12px color-mix(in srgb, var(--accent, var(--gold)) 72%, transparent);
+  }
+}
+
+/* Respect reduced motion for the two new loops (the global block already
+   neutralises durations, this just guarantees no stray transform lingers). */
+@media (prefers-reduced-motion: reduce) {
+  #screen-game:has(#waiting-for-other:not(.hidden)) .question-card,
+  #waiting-for-other:not(.hidden)::before { animation: none !important; }
+}
