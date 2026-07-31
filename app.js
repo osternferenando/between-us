@@ -980,7 +980,7 @@ if (allAnswered) {
     briefNudgeStreak++;
     if (briefNudgeStreak >= 2) {
       const partnerName = othersIds.length ? data.players[othersIds[0]].name : "they";
-      toast(`${partnerName} is really opening up — maybe give a little more next round 💭`);
+      toast(`${partnerName} is really opening up, maybe give a little more next round 💭`);
       briefNudgeStreak = 0;
     }
   } else {
@@ -1239,7 +1239,7 @@ function renderMemoryBook(data) {
   }
   memoryListEl.innerHTML = entries.length
     ? entries.join("")
-    : `<p class="waiting-text">No completed questions yet — answer a few and check back.</p>`;
+    : `<p class="waiting-text">No completed questions yet, answer a few and check back.</p>`;
 }
 
 memoryToggleBtn.addEventListener("click", () => {
