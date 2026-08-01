@@ -1822,3 +1822,77 @@ body[data-theme="light"] { --gold-ink: #96702c; }
    the global reduced-motion block already neutralises — nothing extra
    needed, and nothing can get stranded. */
 
+/* =====================================================================
+   REVEAL DOCK — "Draw Next Card" is always one tap away, in the right
+   order. Pure CSS via :has() (degrades gracefully on old browsers).
+   No JS, no HTML, no logic touched. Append to the END of style.css.
+   ===================================================================== */
+
+/* Once the answers are revealed, the question has already been read and
+   answered — so it recedes into a compact "echo" and frees the screen. */
+#screen-game:has(#reveal:not(.hidden)) { gap: var(--space-3); }
+#screen-game:has(#reveal:not(.hidden)) .deck-wrap { margin: 0; }
+
+#screen-game:has(#reveal:not(.hidden)) .question-card {
+  min-height: 0;
+  padding: var(--space-4) var(--space-5);
+  transition: min-height 0.3s var(--ease-smooth), padding 0.3s var(--ease-smooth), box-shadow 0.35s var(--ease-smooth);
+}
+#screen-game:has(#reveal:not(.hidden)) .question-card .card-index { margin-bottom: var(--space-2); }
+
+#screen-game:has(#reveal:not(.hidden)) .question-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-grow: 0;
+  margin: 0;
+  padding-right: 3.25rem;                 /* keep the heart off the clamped line */
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+#screen-game:has(#reveal:not(.hidden)) .favorite-btn {
+  bottom: var(--space-2); right: var(--space-3); padding: var(--space-2);
+}
+
+/* Correct order everywhere: Draw Next Card (primary) above Save as Image. */
+#screen-game:has(#reveal:not(.hidden)) #next-btn            { order: 2; }
+#screen-game:has(#reveal:not(.hidden)) #export-keepsake-btn { order: 3; }
+
+/* On phones/tablets the two actions become a docked bar pinned to the
+   bottom, so the primary action never needs a scroll. The scrim fades
+   scrolling content out beneath the dock. (Desktop keeps them in flow.) */
+@media (max-width: 899px) {
+  #screen-game:has(#reveal:not(.hidden)) {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); /* clears the dock when scrolled to the end */
+  }
+
+  #screen-game:has(#reveal:not(.hidden))::after {
+    content: "";
+    position: fixed; left: 0; right: 0; bottom: 0;
+    height: calc(168px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to bottom, transparent, var(--table) 42%);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  #screen-game:has(#reveal:not(.hidden)) #next-btn,
+  #screen-game:has(#reveal:not(.hidden)) #export-keepsake-btn {
+    position: fixed;
+    left: 0; right: 0;
+    width: min(calc(100% - 40px), 420px);  /* matches the #app gutters / max width */
+    margin: 0 auto;                         /* centers without a transform (so :active scale never jumps) */
+    z-index: 6;
+    animation: dock-btn-in 0.35s var(--ease-out) backwards; /* opacity-only → stays pinned from frame one */
+  }
+  /* The larger bottom offset sits higher on screen → Draw Next Card on top. */
+  #screen-game:has(#reveal:not(.hidden)) #next-btn            { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  #screen-game:has(#reveal:not(.hidden)) #export-keepsake-btn { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@keyframes dock-btn-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  #screen-game:has(#reveal:not(.hidden)) #next-btn,
+  #screen-game:has(#reveal:not(.hidden)) #export-keepsake-btn { animation: none !important; }
+}
