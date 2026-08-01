@@ -1493,3 +1493,104 @@ body[data-theme="light"] .chat-overlay {
 @media (prefers-reduced-motion: reduce) {
   #chat-messages:empty::before { animation: none !important; opacity: 0.55 !important; transform: none !important; }
 }
+
+/* =====================================================================
+   TIER 0 — End screen: a celebratory recap, not a form summary.
+   Pure CSS. Append to the END of style.css (must stay last).
+   ===================================================================== */
+.end-panel { padding: var(--space-8) var(--space-6) var(--space-7); }
+
+/* Wax-seal "complete" emblem — same scalloped disc as the time capsule,
+   so the product reads as one family. Pops in once; no infinite motion. */
+.end-emblem {
+  position: relative; width: 84px; height: 84px; margin: 0 auto var(--space-5);
+  display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.4), transparent 48%),
+    radial-gradient(circle at 50% 55%, #d8b066, var(--gold) 72%);
+  color: #241c30;
+  box-shadow: 0 6px 18px rgba(156,51,72,0.30), inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -3px 7px rgba(0,0,0,0.18);
+  animation: end-emblem-pop 0.6s var(--ease-spring) backwards;
+}
+.end-emblem::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 1.5px dashed rgba(156,51,72,0.4);
+}
+.end-emblem-mark { font-family: var(--font-display); font-size: 2.1rem; font-weight: 600; line-height: 1; transform: translateY(1px); }
+@keyframes end-emblem-pop { from { opacity: 0; transform: scale(0.5) rotate(-12deg); } }
+
+.end-eyebrow {
+  font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--gold); font-weight: 600;
+  margin: 0 0 var(--space-3); animation: end-rise 0.5s var(--ease-out) 0.08s backwards;
+}
+/* Override the older, smaller end-heading with a confident display line.
+   Base opacity/transform reset to 1/none so the backwards-fill entrance
+   never strands the text invisible (and hover/active stay free later). */
+.end-heading {
+  font-size: clamp(1.85rem, 8vw, 2.45rem); line-height: 1.12; font-weight: 560;
+  letter-spacing: -0.018em; margin: 0 0 var(--space-3); font-optical-sizing: auto;
+  opacity: 1; transform: none;
+  animation: end-rise 0.55s var(--ease-out) 0.14s backwards;
+}
+.end-sub {
+  font-family: var(--font-ui); font-size: 0.92rem; color: var(--on-card-soft);
+  margin: 0 0 var(--space-6); letter-spacing: 0.005em;
+  animation: end-rise 0.5s var(--ease-out) 0.22s backwards;
+}
+
+/* The recap — tactile cardstock stat tiles */
+.end-recap {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);
+  margin: 0 0 var(--space-6); text-align: center;
+}
+.end-stat {
+  background: linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0) 40%), var(--card-2);
+  border: 1px solid var(--border-card); border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-3);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255,255,255,0.7);
+  display: flex; flex-direction: column; gap: 4px;
+  animation: end-rise 0.5s var(--ease-out) backwards;
+}
+.end-stat:nth-child(1) { animation-delay: 0.30s; }
+.end-stat:nth-child(2) { animation-delay: 0.36s; }
+.end-stat:nth-child(3) { animation-delay: 0.42s; }
+.end-stat:nth-child(4) { animation-delay: 0.48s; }
+.end-stat-wide { grid-column: 1 / -1; }
+.end-stat:nth-child(5) { animation-delay: 0.54s; }
+.end-stat-num {
+  font-family: var(--font-display); font-weight: 560; font-size: 1.7rem;
+  line-height: 1; color: var(--garnet); font-optical-sizing: auto; letter-spacing: -0.01em;
+}
+.end-stat-label {
+  font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--on-card-soft); font-weight: 600;
+}
+
+/* A dedication line in italic serif */
+.end-meta {
+  font-family: var(--font-display); font-style: italic; font-size: 0.95rem;
+  color: var(--on-card-soft); margin: 0 0 var(--space-6); line-height: 1.5;
+  font-optical-sizing: auto; animation: end-rise 0.5s var(--ease-out) 0.62s backwards;
+}
+
+/* Re-time the two buttons onto the same cascade (overrides the older
+   btn-reveal so the whole panel rises as one composed sequence). */
+.end-panel .btn { opacity: 1; transform: none; animation: end-rise 0.5s var(--ease-out) backwards; }
+.end-panel .btn-primary { animation-delay: 0.70s; }
+.end-panel .btn-secondary { animation-delay: 0.78s; }
+
+@keyframes end-rise { from { opacity: 0; transform: translateY(12px); } }
+
+@media (hover: hover) and (pointer: fine) {
+  .end-stat { transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-smooth); }
+  .end-stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.7); }
+}
+
+/* Reduced motion: entrance uses backwards-fill, so force the resting
+   state explicitly — nothing may stay invisible. */
+@media (prefers-reduced-motion: reduce) {
+  .end-emblem, .end-eyebrow, .end-heading, .end-sub, .end-stat, .end-meta, .end-panel .btn {
+    animation: none !important; opacity: 1 !important; transform: none !important;
+  }
+}
