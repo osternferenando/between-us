@@ -201,11 +201,24 @@
     </section>
 
     <!-- End Screen -->
+        <!-- End Screen -->
     <section id="screen-end" class="screen hidden">
       <div class="panel end-panel">
-        <h2 class="end-heading">Deck complete</h2>
-        <p class="tagline"><span id="end-count">0</span> questions, answered together</p>
-        <p class="waiting-text">That's a lot of conversation for one sitting.</p>
+        <div class="end-emblem" aria-hidden="true"><span class="end-emblem-mark">✓</span></div>
+        <p class="end-eyebrow">The deck is complete</p>
+        <h2 class="end-heading">You showed up<br>for each other</h2>
+        <p class="end-sub" id="end-sub"></p>
+
+        <div class="end-recap" id="end-recap">
+          <div class="end-stat"><span class="end-stat-num" id="end-count">0</span><span class="end-stat-label">cards drawn</span></div>
+          <div class="end-stat"><span class="end-stat-num" id="end-answered">0</span><span class="end-stat-label">answered together</span></div>
+          <div class="end-stat"><span class="end-stat-num" id="end-skipped">0</span><span class="end-stat-label">skipped</span></div>
+          <div class="end-stat"><span class="end-stat-num" id="end-favorites">0</span><span class="end-stat-label">saved ♥</span></div>
+          <div class="end-stat end-stat-wide"><span class="end-stat-num" id="end-duration">—</span><span class="end-stat-label">minutes together</span></div>
+        </div>
+
+        <p class="end-meta" id="end-meta"></p>
+
         <button id="play-again-btn" class="btn btn-primary">Shuffle a New Deck</button>
         <button id="export-keepsake-btn-end" class="btn btn-secondary">Save as Image 📸</button>
       </div>
