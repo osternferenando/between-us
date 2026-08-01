@@ -109,24 +109,31 @@
     </section>
 
     <!-- Pack Creator Screen -->
+        <!-- Pack Creator Screen -->
     <section id="screen-pack-creator" class="screen hidden">
-      <div class="panel">
-        <h2 class="end-heading">Write a question pack</h2>
-        <label class="field-label" for="pack-title-input">Pack title</label>
-        <input type="text" id="pack-title-input" placeholder="e.g. Late Night Talks">
-        <label class="field-label" for="pack-questions-input">Questions (one per line, at least 3)</label>
-        <textarea id="pack-questions-input" rows="8" placeholder="What's something you've never told me?&#10;Describe your perfect Sunday..."></textarea>
-        <button id="save-pack-btn" class="btn btn-primary">Save Pack</button>
-        <button id="pack-creator-back-btn" class="btn btn-secondary">← Back</button>
+      <div class="panel pack-panel-screen">
+        <div class="memory-panel-top">
+          <button id="pack-creator-back-btn" class="memory-back-btn" aria-label="Back">‹ Back</button>
+        </div>
+        <p class="pack-eyebrow">✎ Your own deck</p>
+        <h2 class="pack-title">Write a question pack</h2>
+        <p class="pack-subtitle">Write the questions you wish someone would ask you. Save it, share the code, play it any time.</p>
 
-        <!-- FIX: This panel + its 3 buttons were missing from the HTML.
-             app.js references them at the TOP LEVEL of the script
-             (packSavedPanelEl, packCodeDisplayEl, packCopyLinkBtn, packUseNowBtn),
-             so when they didn't exist, .addEventListener() on null threw
-             immediately on page load and silently killed the entire script. -->
-        <div id="pack-saved-panel" class="panel substep hidden" style="margin-top:16px;">
-          <p class="field-label">Pack saved! Share this code:</p>
-          <div id="pack-code-display" class="room-code"></div>
+        <label class="field-label" for="pack-title-input">Pack title</label>
+        <input type="text" id="pack-title-input" placeholder="e.g. Late Night Talks" maxlength="60">
+
+        <label class="field-label" for="pack-questions-input">Questions — one per line</label>
+        <textarea id="pack-questions-input" rows="8" placeholder="What's something you've never told me?&#10;Describe your perfect Sunday..."></textarea>
+        <p id="pack-question-count" class="pack-question-count">No questions yet</p>
+
+        <div id="pack-preview" class="pack-preview hidden"></div>
+
+        <button id="save-pack-btn" class="btn btn-primary">Save Pack</button>
+
+        <div id="pack-saved-panel" class="pack-saved-panel hidden">
+          <p class="pack-saved-flag">✓ Saved &amp; ready to share</p>
+          <p class="field-label">Your pack code</p>
+          <div id="pack-code-display" class="pack-code-display">PACK-XXXXX</div>
           <div class="share-row">
             <button id="pack-copy-link-btn" class="btn btn-secondary">Copy Link</button>
             <button id="pack-use-now-btn" class="btn btn-primary">Use This Pack Now</button>
@@ -225,13 +232,27 @@
     </section>
 
     <!-- Memory Book Screen -->
+        <!-- Memory Book Screen -->
     <section id="screen-memory" class="screen hidden">
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h2 class="end-heading" style="margin:0;">Memory Book</h2>
-          <button id="memory-back-btn" class="btn btn-secondary" style="width:auto;margin:0;padding:8px 16px;">Back</button>
+      <div class="panel memory-panel">
+        <div class="memory-panel-top">
+          <button id="memory-back-btn" class="memory-back-btn" aria-label="Back to the game">‹ Back</button>
         </div>
-        <div id="memory-list" class="memory-list"></div>
+
+        <div id="memory-head" class="memory-head hidden">
+          <p class="memory-kicker">📖 The Memory Book</p>
+          <div class="memory-headline">
+            <span class="memory-total" id="memory-total">0</span>
+            <span class="memory-total-label">moments<br>kept</span>
+          </div>
+          <p class="memory-dedication">Everything you two said — saved right here.</p>
+          <div class="memory-filters" role="group" aria-label="Filter memories">
+            <button type="button" id="memory-filter-all" class="memory-filter active">All <span class="memory-filter-count" id="memory-all-count">0</span></button>
+            <button type="button" id="memory-filter-fav" class="memory-filter">♥ <span class="memory-filter-count" id="memory-fav-count">0</span></button>
+          </div>
+        </div>
+
+        <div id="memory-list" class="memory-list" data-filter="all"></div>
       </div>
     </section>
   </main>
