@@ -1763,3 +1763,62 @@ body[data-theme="light"] .chat-overlay {
   .memory-entry, .pack-saved-panel:not(.hidden) .pack-code-display, .memory-fav-btn.bounce { animation: none !important; }
   .memory-entry { opacity: 1 !important; transform: none !important; }
 }
+
+/* =====================================================================
+   TIER 3 — home navigation + final consistency sweep
+   Pure CSS (the button element + logic are the JS block above).
+   Append to the END of style.css so it wins the cascade.
+   ===================================================================== */
+
+/* Readable accent text in light mode. The small uppercase gold labels
+   (#c9a15a) sit on cream with weak contrast; --gold-ink deepens them in
+   light mode while staying identical in dark. Defined here so the fix is
+   self-contained even if an earlier pass didn't add the variable. */
+:root { --gold-ink: #c9a15a; }
+body[data-theme="light"] { --gold-ink: #96702c; }
+.kicker,
+.brand h1 em,
+.end-eyebrow,
+.memory-kicker,
+.pack-eyebrow,
+.capsule-eyebrow { color: var(--gold-ink); }
+
+/* 1. The home control — top-left, mirrored by the Memory Book shifting
+      right so the two never overlap and form a tidy left cluster. */
+.home-toggle {
+  position: fixed; top: 16px; left: 16px;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--border-table); background: var(--table-2); color: var(--on-table);
+  cursor: pointer; font-size: 1.05rem; line-height: 1; z-index: 11;
+  box-shadow: var(--shadow-soft);
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth), background 0.2s var(--ease-smooth);
+}
+.home-toggle:active { transform: scale(0.9); }
+.memory-toggle { left: 68px; }   /* sit beside the home button, never on top of it */
+
+/* 2. Scroll-edge dissolve on the Memory Book — entries fade at the top
+      and bottom instead of hard-clipping. Safe on both the base list and
+      the upgraded Tier-1 list. */
+.memory-list {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
+}
+
+/* 3. Desktop hover life for the surfaces that never received it. The
+      memory-entry rule is guarded so it only styles the plain base rows
+      and never overrides the richer Tier-1 hover (those rows carry an
+      inline --i, which this selector excludes). */
+.tally-row { transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-smooth); }
+.memory-entry:not([style*="--i"]) { transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-smooth); }
+@media (hover: hover) and (pointer: fine) {
+  .home-toggle:hover { transform: scale(1.07); background: var(--table); box-shadow: var(--shadow-card); }
+  .tally-row:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+  .memory-entry:not([style*="--i"]):hover { transform: translateY(-2px); box-shadow: var(--shadow-card-lg); }
+}
+
+/* Reduced motion: the home button only uses transform transitions, which
+   the global reduced-motion block already neutralises — nothing extra
+   needed, and nothing can get stranded. */
+
