@@ -112,6 +112,7 @@ const revealListEl = el("reveal-list");
 const revealQuoteEl = el("reveal-quote");
 const nextBtn = el("next-btn");
 const exportKeepsakeBtn = el("export-keepsake-btn");
+const exportKeepsakeBtnEnd = el("export-keepsake-btn-end");
 // NOTE: Gemini is no longer called directly from the frontend.
 // Set this to your deployed Vercel backend URL (protects your API key).
 const MEDIATOR_BACKEND_URL = "https://between-us-backend.vercel.app/api/mediator";
@@ -139,6 +140,7 @@ let presenceData = {};
 let stallCount = 0; // Tracks how often they dodge questions
 let briefNudgeStreak = 0; // Tracks THIS player's own brief-answer streak, for the private nudge
 let journalGenerationInFlight = false; // prevents duplicate journal calls from rapid snapshot updates
+let endCelebrated = false; // fires the completion confetti exactly once per finished deck
 
 // ========== Chat Feature Variables ==========
 let chatToggleBtn = null;
@@ -254,6 +256,7 @@ function leaveRoom() {
   lastAnimatedIndex = -1;
   lastRevealedIndex = -1;
   celebratedIndex = -1;
+  endCelebrated = false;
   clearGameState();
   createStep.classList.add("hidden");
   joinStep.classList.add("hidden");
@@ -943,7 +946,8 @@ function renderGame(data, sortedIds) {
 
   revealEl.classList.toggle("hidden", !allAnswered);
   nextBtn.classList.toggle("hidden", !allAnswered);
-  
+  exportKeepsakeBtn.classList.toggle("hidden", !allAnswered);
+ 
   // Inside renderGame, after checking if everyone answered:
   const answers = Object.values(answersForQ);
 
@@ -1144,7 +1148,50 @@ voteSkipBtn.addEventListener("click", async () => {
 
 function renderEnd(data) {
   showScreen("end");
-  endCountEl.textContent = data.questions.length;
+  const total = data.questions.length;
+  const sortedIds = sortedPlayerIds(data);
+
+  // Recap maths — at completion every round is fully answered, so
+  // "answered together" + "skipped" always sums to the cards drawn.
+  let answered = 0;
+  let skippedRounds = 0;
+  for (let i = 0; i < total; i++) {
+    const a = (data.answers && data.answers[i]) || {};
+    const vals = sortedIds.map((id) => a[id]);
+    const allDefined = vals.every((v) => v !== undefined);
+    const anySkip = vals.some((v) => v === SKIPPED);
+    if (allDefined && !anySkip) answered++;
+    else skippedRounds++;
+  }
+
+  // Cards from this deck the player has hearted (global favourites set).
+  let favs = 0;
+  for (let i = 0; i < total; i++) if (favorites.has(data.questions[i])) favs++;
+
+  // Time spent together, from the room's createdAt timestamp.
+  const createdMs = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : null;
+  const minutes = createdMs ? Math.max(1, Math.round((Date.now() - createdMs) / 60000)) : 0;
+
+  const meta = categoryLabel(data);
+  const names = sortedIds.map((id) => data.players[id].name).join("  ·  ");
+
+  // Fill the recap tiles (guarded so a missing node never throws).
+  endCountEl.textContent = total;
+  const set = (id, v) => { const n = document.getElementById(id); if (n) n.textContent = v; };
+  set("end-answered", answered);
+  set("end-skipped", skippedRounds);
+  set("end-favorites", favs);
+  set("end-duration", minutes || "—");
+  const subEl = document.getElementById("end-sub");
+  if (subEl) subEl.textContent = `${meta.emoji}  ${meta.label}  ·  ${sortedIds.length} of you, ${total} cards deep`;
+  const metaEl = document.getElementById("end-meta");
+  if (metaEl) metaEl.textContent = names ? `A conversation between ${names}.` : "";
+
+  // The payoff moment — celebrate exactly once per finished deck.
+  if (!endCelebrated) {
+    endCelebrated = true;
+    fireConfetti();
+  }
 }
 
 // ---------- Answer submit ----------
@@ -1297,6 +1344,7 @@ playAgainBtn.addEventListener("click", async () => {
   lastAnimatedIndex = -1;
   lastRevealedIndex = -1;
   celebratedIndex = -1;
+  endCelebrated = false;
   try {
     await updateDoc(doc(db, "rooms", roomId), { questions: newQuestions, currentIndex: 0, answers: {}, votes: {} });
   } catch (err) {
@@ -1444,50 +1492,44 @@ function checkForNewReactions(data) {
 }
 
 // ---------- Keepsake Export Logic ----------
-exportKeepsakeBtn.addEventListener("click", async () => {
-    // 1. Prevent spam clicking
-    exportKeepsakeBtn.disabled = true;
-    exportKeepsakeBtn.textContent = "Snapping... 📸";
-
-    // 2. Temporarily hide the UI buttons we don't want in the final picture
-    const originalNextBtnDisplay = nextBtn.style.display;
-    nextBtn.style.display = "none";
-    exportKeepsakeBtn.style.display = "none";
-    leaveRoomBtn.style.display = "none";
-
-    try {
-        // 3. Take a high-res snapshot of the whole app container
-        const captureArea = el("app");
-        const canvas = await html2canvas(captureArea, {
-            backgroundColor: getComputedStyle(document.body).backgroundColor, // Matches dark/light mode
-            scale: 2, // Doubles the resolution for crisp social media sharing
-            useCORS: true // Ensures custom fonts load correctly in the image
-        });
-
-        // 4. Convert the canvas into a downloadable PNG file
-        const image = canvas.toDataURL("image/png");
-        const link = document.createElement("a");
-        link.href = image;
-        link.download = `BetweenUs-Memory-${Math.floor(Math.random() * 10000)}.png`;
-        
-        // 5. Trigger the download!
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast("Image saved to your device! 📸");
-    } catch (err) {
-        console.error("Export failed:", err);
-        toast("Couldn't save the image right now.");
-    } finally {
-        // 6. Bring all the buttons back so the game can continue
-        nextBtn.style.display = originalNextBtnDisplay;
-        exportKeepsakeBtn.style.display = "block";
-        leaveRoomBtn.style.display = "block";
-        exportKeepsakeBtn.disabled = false;
-        exportKeepsakeBtn.textContent = "Save as Image 📸";
-    }
-});
+// Shared keepsake capture — used by both the in-game and the end-screen
+// "Save as Image" buttons. Hides only the controls you don't want in the
+// photo, snaps #app at 2×, then restores everything exactly as it was.
+// Pure presentation: no game state, no Firestore, no logic touched.
+async function captureAppAsImage(triggerBtn, hideEls) {
+  triggerBtn.disabled = true;
+  const originalLabel = triggerBtn.textContent;
+  triggerBtn.textContent = "Snapping... 📸";
+  const saved = hideEls.map((node) => ({ node, display: node.style.display }));
+  saved.forEach(({ node }) => { node.style.display = "none"; });
+  try {
+    const canvas = await html2canvas(el("app"), {
+      backgroundColor: getComputedStyle(document.body).backgroundColor,
+      scale: 2,
+      useCORS: true,
+    });
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `BetweenUs-Memory-${Math.floor(Math.random() * 10000)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast("Image saved to your device! 📸");
+  } catch (err) {
+    console.error("Export failed:", err);
+    toast("Couldn't save the image right now.");
+  } finally {
+    saved.forEach(({ node, display }) => { node.style.display = display; });
+    triggerBtn.disabled = false;
+    triggerBtn.textContent = originalLabel;
+  }
+}
+exportKeepsakeBtn.addEventListener("click", () =>
+  captureAppAsImage(exportKeepsakeBtn, [nextBtn, exportKeepsakeBtn, leaveRoomBtn])
+);
+exportKeepsakeBtnEnd.addEventListener("click", () =>
+  captureAppAsImage(exportKeepsakeBtnEnd, [playAgainBtn, exportKeepsakeBtnEnd])
+);
 
 async function autoIntervene(data) {
     // 1. Only run if we haven't already created a pending mediator question
@@ -1681,142 +1723,53 @@ window.saveJournal = saveJournal;
 window.exportJournal = exportJournal;
 
 // CSS Styles - Add to your stylesheet or <head>
+// Journal modal styles — design-system (CSS variables), injected at runtime
+// exactly like the chat / capsule / age-gate / deck-builder modals, so the
+// journal themes correctly in BOTH dark and light mode. (The old hardcoded
+// #667eea / white sheet that used to live here is gone.)
 const journalStyles = `
 <style>
 .journal-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
+  position: fixed; inset: 0;
+  background: rgba(20, 18, 14, 0.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1100; padding: 20px;
+  backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);
+  animation: journal-backdrop-in 0.25s ease-out;
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
+@keyframes journal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 .journal-container {
-  background: white;
-  border-radius: 16px;
-  max-width: 500px;
-  width: 90%;
-  padding: 30px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: slideUp 0.4s ease;
+  background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 30%, rgba(0,0,0,0.015) 100%), var(--card, #f6efe1);
+  color: var(--on-card, #241c30);
+  border: 1px solid var(--border-card, rgba(36,28,48,0.08));
+  border-radius: 22px; max-width: 500px; width: 100%; padding: 30px 26px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(0,0,0,0.03);
+  animation: journal-modal-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
-@keyframes slideUp {
-  from { transform: translateY(40px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+@keyframes journal-modal-in { from { opacity: 0; transform: scale(0.94) translateY(12px); } to { opacity: 1; transform: none; } }
+.journal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border-card, rgba(36,28,48,0.1)); }
+.journal-header h2 { margin: 0; font-family: var(--font-display, 'Fraunces', serif); font-size: 1.5rem; font-weight: 550; letter-spacing: -0.01em; font-optical-sizing: auto; }
+.journal-close { background: none; border: none; font-size: 26px; cursor: pointer; color: var(--on-card-soft, #6b5f78); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 999px; transition: background 0.2s ease, color 0.2s ease; }
+.journal-close:hover { background: rgba(0,0,0,0.05); color: var(--on-card, #241c30); }
+.journal-content { margin-bottom: 8px; }
+.journal-category { display: inline-block; background: var(--gold, #c9a15a); color: #241c30; padding: 6px 14px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; font-family: var(--font-mono, 'IBM Plex Mono', monospace); }
+.journal-text { font-family: var(--font-display, 'Fraunces', serif); font-style: italic; font-size: 1.05rem; line-height: 1.65; margin: 14px 0; padding: 18px 20px; background: var(--card-2, #fffaf1); color: var(--on-card, #241c30); border-left: 3px solid var(--garnet, #9c3348); border-radius: 6px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); font-optical-sizing: auto; }
+.journal-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--on-card-soft, #6b5f78); font-family: var(--font-mono, 'IBM Plex Mono', monospace); letter-spacing: 0.04em; padding-top: 6px; }
+.journal-actions { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+.journal-btn { flex: 1; min-width: 120px; padding: 14px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-family: var(--font-ui, 'Plus Jakarta Sans', sans-serif); font-size: 0.95rem; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.15s ease; }
+.journal-btn:active { transform: translateY(2px) scale(0.97); }
+.journal-btn.primary { background: var(--gold, #c9a15a); color: #241c30; box-shadow: 0 2px 0 var(--garnet, #9c3348), 0 6px 16px rgba(156, 51, 72, 0.22); }
+.journal-btn.primary:active { box-shadow: 0 0 0 var(--garnet, #9c3348); filter: brightness(0.97); }
+.journal-btn.secondary { background: var(--card-2, #fffaf1); color: var(--on-card, #241c30); border: 1px solid var(--border-card, rgba(36,28,48,0.12)); box-shadow: 0 2px 0 var(--border-card, rgba(36,28,48,0.12)), 0 4px 12px rgba(36, 28, 48, 0.05); }
+.journal-btn.secondary:active { box-shadow: 0 0 0 var(--border-card, rgba(36,28,48,0.12)); filter: brightness(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .journal-btn.primary:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 3px 0 var(--garnet, #9c3348), 0 10px 22px rgba(156, 51, 72, 0.30); }
+  .journal-btn.secondary:hover { transform: translateY(-1px); box-shadow: 0 3px 0 var(--border-card, rgba(36,28,48,0.12)), 0 8px 18px rgba(36, 28, 48, 0.10); }
 }
-
-.journal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 15px;
-}
-
-.journal-header h2 {
-  margin: 0;
-  font-size: 24px;
-  color: #333;
-}
-
-.journal-close {
-  background: none;
-  border: none;
-  font-size: 28px;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.journal-close:hover {
-  color: #333;
-}
-
-.journal-content {
-  margin-bottom: 25px;
-}
-
-.journal-category {
-  display: inline-block;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-bottom: 15px;
-}
-
-.journal-text {
-  font-size: 16px;
-  line-height: 1.6;
-  color: #333;
-  font-style: italic;
-  margin: 15px 0;
-  padding: 15px;
-  background: #f9f9f9;
-  border-left: 4px solid #667eea;
-  border-radius: 4px;
-}
-
-.journal-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: #999;
-  padding-top: 10px;
-}
-
-.journal-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.journal-btn {
-  flex: 1;
-  min-width: 120px;
-  padding: 12px 16px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.journal-btn:hover {
-  background: #5568d3;
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-}
-
-.journal-btn:active {
-  transform: translateY(0);
-}
+@media (prefers-reduced-motion: reduce) { .journal-modal, .journal-container { animation: none !important; } }
 </style>
 `;
+
 
 // Insert styles into document
 if (!document.querySelector("style[data-journal]")) {
