@@ -1250,24 +1250,38 @@ cancelWaitingBtn.addEventListener("click", leaveRoom);
 function renderMemoryBook(data) {
   const sortedIds = sortedPlayerIds(data);
   const entries = [];
+  let favCount = 0;
+
   for (let i = 0; i < data.currentIndex; i++) {
+    const qText = data.questions[i];
+    const isFav = favorites.has(qText);
+    const num = String(i + 1).padStart(3, "0");
+    const delay = Math.min(i, 14); // cap the stagger so a long book never lags
+    const qAttr = escapeHtml(qText).replace(/"/g, "&quot;");
+    const favBtn =
+      `<button type="button" class="memory-fav-btn${isFav ? " active" : ""}" data-q="${qAttr}" ` +
+      `aria-pressed="${isFav}" aria-label="${isFav ? "Remove from favorites" : "Save to favorites"}">${isFav ? "♥" : "♡"}</button>`;
+    const head =
+      `<header class="memory-entry-head"><span class="index-number">No. ${num}</span>${favBtn}</header>`;
+
     if (data.category === "vote") {
       const votesForQ = (data.votes && data.votes[i]) || {};
       const complete = sortedIds.every((id) => votesForQ[id] !== undefined);
       if (!complete) continue;
       const tally = {};
       sortedIds.forEach((id) => (tally[id] = 0));
-      Object.values(votesForQ).forEach((t) => {
-        if (t !== SKIPPED && tally[t] !== undefined) tally[t] += 1;
-      });
+      Object.values(votesForQ).forEach((t) => { if (t !== SKIPPED && tally[t] !== undefined) tally[t] += 1; });
       const winnerId = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+      if (isFav) favCount++;
       entries.push(
-        `<div class="memory-entry"><span class="index-number">No. ${String(i + 1).padStart(3, "0")}</span>` +
-        `<p class="memory-q">${favorites.has(data.questions[i]) ? "♥ " : ""}${escapeHtml(data.questions[i])}</p>` +
-        `<p class="memory-a"><b>Most votes</b>${escapeHtml(data.players[winnerId]?.name || "—")} (${tally[winnerId] || 0})</p></div>`
+        `<article class="memory-entry${isFav ? " is-favorite" : ""}" style="--i:${delay}">` + head +
+        `<p class="memory-q">${escapeHtml(qText)}</p>` +
+        `<div class="memory-answers"><p class="memory-a"><b>Most votes</b>${escapeHtml(data.players[winnerId]?.name || "—")} (${tally[winnerId] || 0})</p></div>` +
+        `</article>`
       );
       continue;
     }
+
     const answersForQ = (data.answers && data.answers[i]) || {};
     const complete = sortedIds.every((id) => answersForQ[id] !== undefined);
     if (!complete) continue;
@@ -1279,14 +1293,33 @@ function renderMemoryBook(data) {
         return `<p class="memory-a"><b>${label}</b>${shown}</p>`;
       })
       .join("");
+    if (isFav) favCount++;
     entries.push(
-      `<div class="memory-entry"><span class="index-number">No. ${String(i + 1).padStart(3, "0")}</span>` +
-      `<p class="memory-q">${favorites.has(data.questions[i]) ? "♥ " : ""}${escapeHtml(data.questions[i])}</p>${answerRows}</div>`
+      `<article class="memory-entry${isFav ? " is-favorite" : ""}" style="--i:${delay}">` + head +
+      `<p class="memory-q">${escapeHtml(qText)}</p>` +
+      `<div class="memory-answers">${answerRows}</div>` +
+      `</article>`
     );
   }
-  memoryListEl.innerHTML = entries.length
-    ? entries.join("")
-    : `<p class="waiting-text">No completed questions yet, answer a few and check back.</p>`;
+
+  // Header summary — the nodes live in the static section markup (guarded).
+  const totalEl = document.getElementById("memory-total");
+  const favPillCountEl = document.getElementById("memory-fav-count");
+  const allPillCountEl = document.getElementById("memory-all-count");
+  const headEl = document.getElementById("memory-head");
+  if (totalEl) totalEl.textContent = entries.length;
+  if (favPillCountEl) favPillCountEl.textContent = favCount;
+  if (allPillCountEl) allPillCountEl.textContent = entries.length;
+  if (headEl) headEl.classList.toggle("hidden", entries.length === 0);
+
+  if (entries.length) {
+    memoryListEl.innerHTML =
+      `<p class="memory-fav-empty hidden">No favorites here yet — tap the ♡ on any memory to keep it close.</p>` +
+      entries.join("");
+  } else {
+    memoryListEl.innerHTML = `<p class="waiting-text">No completed questions yet — answer a few and check back.</p>`;
+  }
+  syncMemoryFilter(); // re-apply the active filter + sync the empty note
 }
 
 memoryToggleBtn.addEventListener("click", () => {
@@ -1297,6 +1330,80 @@ memoryToggleBtn.addEventListener("click", () => {
 memoryBackBtn.addEventListener("click", () => {
   if (currentRoomData) render(currentRoomData);
 });
+// ---------- Memory Book: in-place favorite toggle + All/Favorites filter ----------
+// Pure presentation over the existing `favorites` Set + saveFavorites() — the
+// exact same source of truth the in-game heart uses, so the two stay in sync.
+// No game state, no Firestore, no renamed selectors.
+function currentMemoryFilter() {
+  return memoryListEl.dataset.filter === "fav" ? "fav" : "all";
+}
+function syncMemoryFilter() {
+  const filter = currentMemoryFilter();
+  const allBtn = document.getElementById("memory-filter-all");
+  const favBtn = document.getElementById("memory-filter-fav");
+  if (allBtn) allBtn.classList.toggle("active", filter === "all");
+  if (favBtn) favBtn.classList.toggle("active", filter === "fav");
+  const note = memoryListEl.querySelector(".memory-fav-empty");
+  if (note) {
+    const favVisible = memoryListEl.querySelectorAll(".memory-fav-btn.active").length;
+    note.classList.toggle("hidden", !(filter === "fav" && favVisible === 0));
+  }
+}
+function setMemoryFilter(filter) {
+  memoryListEl.dataset.filter = filter;
+  syncMemoryFilter();
+}
+memoryListEl.addEventListener("click", (e) => {
+  const btn = e.target.closest(".memory-fav-btn");
+  if (!btn) return;
+  const q = btn.dataset.q;
+  if (!q) return;
+  const nowFav = !favorites.has(q);
+  if (nowFav) favorites.add(q); else favorites.delete(q);
+  saveFavorites();
+  btn.classList.toggle("active", nowFav);
+  btn.setAttribute("aria-pressed", String(nowFav));
+  btn.setAttribute("aria-label", nowFav ? "Remove from favorites" : "Save to favorites");
+  btn.textContent = nowFav ? "♥" : "♡";
+  const entry = btn.closest(".memory-entry");
+  if (entry) entry.classList.toggle("is-favorite", nowFav);
+  const favPillCountEl = document.getElementById("memory-fav-count");
+  if (favPillCountEl) favPillCountEl.textContent = memoryListEl.querySelectorAll(".memory-fav-btn.active").length;
+  syncMemoryFilter();
+  btn.classList.remove("bounce"); void btn.offsetWidth; btn.classList.add("bounce"); // tactile pop
+});
+const memoryFilterAllBtn = document.getElementById("memory-filter-all");
+const memoryFilterFavBtn = document.getElementById("memory-filter-fav");
+if (memoryFilterAllBtn) memoryFilterAllBtn.addEventListener("click", () => setMemoryFilter("all"));
+if (memoryFilterFavBtn) memoryFilterFavBtn.addEventListener("click", () => setMemoryFilter("fav"));
+
+// ---------- Pack Creator: live question counter + live preview ----------
+// Reads the textarea only — never touches savePackBtn's validation or Firestore.
+function updatePackPreview() {
+  const lines = packQuestionsInput.value.split("\n").map((l) => l.trim()).filter(Boolean);
+  const n = lines.length;
+  const countEl = document.getElementById("pack-question-count");
+  const previewEl = document.getElementById("pack-preview");
+  if (countEl) {
+    countEl.textContent = n === 0 ? "No questions yet" : `${n} question${n === 1 ? "" : "s"} detected`;
+    countEl.classList.toggle("ok", n >= 3);
+    countEl.classList.toggle("warn", n > 0 && n < 3);
+  }
+  if (previewEl) {
+    if (n === 0) {
+      previewEl.classList.add("hidden");
+      previewEl.innerHTML = "";
+    } else {
+      previewEl.classList.remove("hidden");
+      previewEl.innerHTML =
+        `<p class="pack-preview-title">Preview</p>` +
+        lines.slice(0, 3).map((q) => `<p class="pack-preview-q">• ${escapeHtml(q)}</p>`).join("") +
+        (n > 3 ? `<p class="pack-preview-more">+ ${n - 3} more</p>` : "");
+    }
+  }
+}
+packQuestionsInput.addEventListener("input", updatePackPreview);
+updatePackPreview();
 
 // ---------- Next question ----------
 nextBtn.addEventListener("click", async () => {
