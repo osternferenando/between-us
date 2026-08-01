@@ -201,6 +201,7 @@ function showScreen(name) {
   }
   
   memoryToggleBtn.classList.toggle("hidden", !["game", "end"].includes(name));
+  if (homeToggleBtn) homeToggleBtn.classList.toggle("hidden", ["landing", "packCreator"].includes(name));
   if (chatToggleBtn) chatToggleBtn.classList.toggle("chat-toggle-docked", name !== "game");
 }
 
@@ -3596,3 +3597,41 @@ favoriteBtn.addEventListener("click", () => {
   void favoriteBtn.offsetWidth;
   favoriteBtn.classList.add("bounce");
 });
+
+// ====== Home button — a clear way back to the landing screen ======
+// Additive: builds its own control, reuses leaveRoom() and the age-gate
+// modal styles. No game logic, no Firebase, no renamed selectors.
+// Mid-game it confirms first (a live conversation is worth protecting);
+// from End / Memory / Waiting it goes straight home (the room is safely
+// kept in Firestore + Recent Rooms, so nothing is ever lost).
+let homeToggleBtn = null;
+function ensureHomeButton() {
+  if (homeToggleBtn) return;
+  homeToggleBtn = document.createElement("button");
+  homeToggleBtn.type = "button";
+  homeToggleBtn.id = "home-toggle";
+  homeToggleBtn.className = "home-toggle hidden";
+  homeToggleBtn.setAttribute("aria-label", "Leave and go to the home screen");
+  homeToggleBtn.title = "Leave & go home";
+  homeToggleBtn.textContent = "🏠";
+  memoryToggleBtn.insertAdjacentElement("beforebegin", homeToggleBtn);
+  homeToggleBtn.addEventListener("click", goHome);
+}
+function goHome() {
+  const total = currentRoomData && currentRoomData.questions ? currentRoomData.questions.length : 0;
+  const inActiveGame = !!(currentRoomData && currentRoomData.started && currentRoomData.currentIndex < total);
+  if (inActiveGame) showLeaveConfirm();
+  else leaveRoom();
+}
+function showLeaveConfirm() {
+  injectAgeGateStyles(); // re-use the on-brand modal skin already in the app
+  const overlay = document.createElement("div");
+  overlay.className = "agegate-overlay";
+  overlay.innerHTML = `<div class="agegate-modal"> <p class="agegate-icon">🏠</p> <h3 class="agegate-title">Leave this conversation?</h3> <p class="agegate-text">You can jump back in any time from “Your recent rooms” on the home screen — nothing you've said is lost.</p> <div class="agegate-actions"> <button type="button" class="btn btn-secondary leave-confirm-stay">Stay &amp; keep playing</button> <button type="button" class="btn btn-primary leave-confirm-go">Leave &amp; go home</button> </div> </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector(".leave-confirm-stay").addEventListener("click", close);
+  overlay.querySelector(".leave-confirm-go").addEventListener("click", () => { close(); leaveRoom(); });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+}
+ensureHomeButton();
